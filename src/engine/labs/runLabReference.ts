@@ -1,11 +1,13 @@
 import type { LabReference } from '../../data/courseLabs.ts';
 import type { SimulationResult } from '../../types/index.ts';
 import { runLiveSimulation } from '../simulation/liveSimulation.ts';
+import { checkLabConfiguration } from './checkLabConfiguration.ts';
 import { evaluateAuthorization } from '../iam/evaluate.ts';
 
 /** Execute supplied course evidence, without inventing deployment or scaling behavior. */
 export function runLabReference(reference: LabReference): SimulationResult {
   const ref = structuredClone(reference);
+  if (ref.configurationChecks) return checkLabConfiguration(ref);
   if (!ref.authorization) {
     const result = runLiveSimulation(ref.nodes, ref.edges, ref.scenario);
     if (ref.simulationScope) result.summary += ` Reference scope: ${ref.simulationScope}`;

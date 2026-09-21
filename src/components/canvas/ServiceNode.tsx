@@ -78,8 +78,8 @@ export const ServiceNode = memo((props: any) => {
       </div>
 
       {/* Clean Service Label under the icon (matches reference diagram) */}
-      <div className="mt-1.5 px-1 leading-tight">
-        <span className="text-[12px] font-semibold text-slate-900 tracking-tight block">
+      <div className="mt-1.5 px-1 leading-tight w-full min-w-0">
+        <span className="text-[12px] font-semibold text-slate-900 tracking-tight block [overflow-wrap:anywhere]">
           {nodeData.label || serviceDef.name}
         </span>
         {nodeData.notes && (

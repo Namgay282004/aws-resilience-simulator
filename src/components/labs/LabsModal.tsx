@@ -41,11 +41,11 @@ export function LabsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           <a href={lab.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 text-sm my-3 underline">Open original lab instructions <ExternalLink size={14}/></a>
           <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">{lab.objectives.map(text => <li key={text}>{text}</li>)}</ul>
           <p className="my-4 p-3 rounded bg-amber-50 text-amber-900 text-sm"><strong>Simulation scope: </strong>{lab.limitations}</p>
-          <p className="text-xs text-slate-500 mb-3">Loading or running a reference replaces the current canvas. Run reference uses the supplied configuration; use Send Request to explore canvas edits for network labs. IAM examples use a separate policy evaluation.</p>
+          <p className="text-xs text-slate-500 mb-3">Loading or running a reference replaces the current canvas. Run reference uses the supplied snapshot. After loading, Send Request tests network edits, Check Configuration rechecks course settings, and Evaluate Policy uses the supplied IAM policy.</p>
           <div className="space-y-3">{lab.references.map(reference => <article key={reference.id} className="border rounded-lg p-4">
             <h4 className="font-semibold">{reference.title}</h4><p className="text-sm text-slate-600 mt-1">{reference.description}</p>
             <p className="text-sm mt-2"><strong>Expected: </strong>{reference.expected}</p>
-            <div className="flex gap-3 mt-3"><button className="border rounded px-3 py-2 text-sm hover:bg-slate-50" onClick={() => { openLabReference(reference); onClose(); }}>Load reference</button><button className="bg-blue-600 text-white rounded px-3 py-2 text-sm hover:bg-blue-700" onClick={() => { openLabReference(reference, true); onClose(); }}>Run reference simulation</button></div>
+            <div className="flex gap-3 mt-3"><button className="border rounded px-3 py-2 text-sm hover:bg-slate-50" onClick={() => { openLabReference(reference); onClose(); }}>Load reference</button><button className="bg-blue-600 text-white rounded px-3 py-2 text-sm hover:bg-blue-700" onClick={() => { openLabReference(reference, true); onClose(); }}>{reference.configurationChecks ? 'Check reference configuration' : 'Run reference simulation'}</button></div>
           </article>)}</div>
         </section>
       </div>

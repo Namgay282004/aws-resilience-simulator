@@ -16,6 +16,7 @@ import {
 export const SimulationControls: React.FC = () => {
   const {
     scenario,
+    activeLabReference,
     setScenario,
     runScenario,
     resetSimulation,
@@ -34,6 +35,10 @@ export const SimulationControls: React.FC = () => {
 
   const [isTraceOpen, setIsTraceOpen] = useState(false);
 
+  const configurationOnly = Boolean(activeLabReference?.configurationChecks);
+  const policyOnly = Boolean(activeLabReference?.authorization);
+  const checkOnly = configurationOnly || policyOnly;
+
   const totalSteps = simulationResult?.steps.length || 0;
   const currentStepNum = activeStepIndex !== null ? activeStepIndex + 1 : 0;
 
@@ -41,7 +46,7 @@ export const SimulationControls: React.FC = () => {
     <div className="bg-white border-t border-slate-200 px-6 py-2.5 shadow-sm flex flex-wrap items-center justify-between gap-4 z-10 select-none">
       {/* Left: Request Parameters */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 font-mono text-xs">
+        {!checkOnly && <div className="flex items-center gap-1.5 font-mono text-xs">
           {/* HTTP Method */}
           <select
             value={scenario.method}
@@ -62,10 +67,10 @@ export const SimulationControls: React.FC = () => {
             placeholder="/products"
             className="w-36 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-400"
           />
-        </div>
+        </div>}
 
         {/* Traffic Load Selector */}
-        <div className="flex items-center gap-1.5 text-xs text-slate-600">
+        {!checkOnly && <div className="flex items-center gap-1.5 text-xs text-slate-600">
           <span className="font-normal text-slate-500">Load:</span>
           <select
             value={scenario.trafficLevel}
@@ -78,7 +83,7 @@ export const SimulationControls: React.FC = () => {
             <option value="10x">10x Surge Spike</option>
             <option value="100x">100x Extreme Spike</option>
           </select>
-        </div>
+        </div>}
 
         {/* Run Request Button */}
         <button
@@ -86,7 +91,7 @@ export const SimulationControls: React.FC = () => {
           className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#232F3E] hover:bg-[#1A232E] text-white font-medium text-xs shadow-xs active:scale-98 transition-all"
         >
           <Send className="w-3.5 h-3.5" />
-          <span>Send Request</span>
+          <span>{configurationOnly ? 'Check Configuration' : policyOnly ? 'Evaluate Policy' : 'Send Request'}</span>
         </button>
 
         {/* Task Flow Highlighting Toggle */}
@@ -204,8 +209,8 @@ export const SimulationControls: React.FC = () => {
             ) : (
               <XCircle className="w-3.5 h-3.5 text-rose-600" />
             )}
-            <span>HTTP {simulationResult.statusCode}</span>
-            <span className="text-[10px] opacity-80">({simulationResult.totalLatencyMs}ms)</span>
+            <span>{checkOnly ? `${configurationOnly ? 'Configuration' : 'Policy'} ${simulationResult.success ? 'PASS' : 'FAIL'}` : `HTTP ${simulationResult.statusCode}`}</span>
+            {!checkOnly && <span className="text-[10px] opacity-80">({simulationResult.totalLatencyMs}ms)</span>}
           </div>
         </div>
       ) : (

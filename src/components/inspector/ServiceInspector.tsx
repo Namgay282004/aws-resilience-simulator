@@ -1,5 +1,6 @@
 import { supportsSecurityGroupAttachment } from '../../engine/network/securityGroupAttachment.ts';
 import React, { useState } from 'react';
+import { LabConfigurationPanel } from './LabConfigurationPanel.tsx';
 import { EcsConfigurationPanel } from './EcsConfigurationPanel.tsx';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 import { SERVICE_MAP } from '../../data/serviceCatalog.ts';
@@ -48,6 +49,7 @@ import {
 export const ServiceInspector: React.FC = () => {
   const {
     selectedNode,
+    activeLabReference,
     setSelectedNodeId,
     selectedEdge,
     setSelectedEdgeId,
@@ -1455,6 +1457,7 @@ export const ServiceInspector: React.FC = () => {
             {/* ---------------------------------------------------- */}
             {/* SERVICE-SPECIFIC AWS CONFIGURATION (EC2, S3, RDS, etc.) */}
             {/* ---------------------------------------------------- */}
+            {activeLabReference?.configurationChecks && nodeData.customConfig && <LabConfigurationPanel key={selectedNode.id} config={nodeData.customConfig} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
             {nodeData.serviceId === 'ecs' && <EcsConfigurationPanel data={nodeData} onChange={(customConfig) => updateNodeData(selectedNode.id, { customConfig })} />}
             {nodeData.serviceId === 'ec2' && (
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">

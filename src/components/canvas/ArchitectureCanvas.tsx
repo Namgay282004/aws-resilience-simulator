@@ -31,6 +31,7 @@ const edgeTypes = {
 export const ArchitectureCanvas: React.FC = () => {
   const {
     nodes,
+    canvasRevision,
     onNodesChange,
     edges,
     onEdgesChange,
@@ -189,6 +190,7 @@ export const ArchitectureCanvas: React.FC = () => {
   return (
     <div className="relative w-full h-full bg-white flex-1 overflow-hidden select-none" ref={reactFlowWrapper}>
       <ReactFlow
+        key={canvasRevision}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}

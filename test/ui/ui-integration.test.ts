@@ -41,15 +41,16 @@ function Harness({ apiRef }: { apiRef: { current: Api | null } }) {
   return null;
 }
 
+const { SimulationControls } = await import('../../src/components/simulation/SimulationControls.tsx');
 const { LabsModal } = await import('../../src/components/labs/LabsModal.tsx');
 const { COURSE_LABS } = await import('../../src/data/courseLabs.ts');
 
-async function mount(showInspector = false, showLabs = false) {
+async function mount(showInspector = false, showLabs = false, showControls = false) {
   const container = document.getElementById('root')!;
   const root = createRoot(container);
   const apiRef: { current: Api | null } = { current: null };
   await act(async () => {
-    root.render(React.createElement(ArchitectureProvider, null, React.createElement(Harness, { apiRef }), showInspector ? React.createElement(ServiceInspector) : null, showLabs ? React.createElement(LabsModal, { isOpen: true, onClose: () => {} }) : null));
+    root.render(React.createElement(ArchitectureProvider, null, React.createElement(Harness, { apiRef }), showInspector ? React.createElement(ServiceInspector) : null, showLabs ? React.createElement(LabsModal, { isOpen: true, onClose: () => {} }) : null, showControls ? React.createElement(SimulationControls) : null));
   });
   return {
     api: () => apiRef.current!,
@@ -84,7 +85,7 @@ test('Labs: select instructions, run ALB failover, then load a clean editable re
   const h = await mount(false, true);
   try {
     const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
-    assert.equal(document.querySelectorAll('nav[aria-label="Course labs"] button').length, 9);
+    assert.equal(document.querySelectorAll('nav[aria-label="Course labs"] button').length, 13);
     await h.act(() => button('Lab 5').click());
     assert.match(document.querySelector('a')!.href, /Lab-05-ALB.html$/);
     const runButtons = [...document.querySelectorAll('button')].filter(b => b.textContent === 'Run reference simulation');
@@ -107,7 +108,7 @@ test('Labs: select instructions, run ALB failover, then load a clean editable re
     await h.act(() => eksRuns[1].click());
     assert.equal(h.api().simulationResult?.success, true);
     assert.match(h.api().simulationResult!.summary, /no scheduler, HPA/);
-    assert.equal(h.api().nodes.find(n => n.id === 'lab-enrolment')!.data.replicas, 5);
+    assert.equal(h.api().nodes.find(n => n.id === 'lab-enrolment')!.data.replicas, 4);
   } finally { await h.unmount(); }
 });
 
@@ -247,5 +248,89 @@ test('Inspector scopes NACL configuration to subnets and keeps EC2 security grou
     assert.match(document.body.textContent!, /Network ACL/);
     await h.act(() => h.api().addServiceNode('s3', { x: 600, y: 600 }));
     assert.doesNotMatch(document.body.textContent!, /Attach Security Group|NACL Rules|Network ACL/);
+  } finally { await h.unmount(); }
+});
+
+
+test('Labs 9–13: select, check supplied references, then recheck edited canvas configuration', async () => {
+  const h = await mount(false, true, true);
+  try {
+    for (const number of [9, 10, 11, 12, 13]) {
+      const nav = [...document.querySelectorAll('nav[aria-label="Course labs"] button')].find(b => b.textContent?.startsWith(`Lab ${number} ·`)) as HTMLElement;
+      await h.act(() => nav.click());
+      const lab = COURSE_LABS.find(l => l.number === number)!;
+      assert.equal(document.querySelector('a')!.href, lab.sourceUrl);
+      const run = [...document.querySelectorAll('button')].find(b => b.textContent === (number === 9 ? 'Run reference simulation' : 'Check reference configuration'))!;
+      await h.act(() => run.click());
+      assert.equal(h.api().simulationResult?.success, true, `Lab ${number} reference`);
+      if (number !== 9) {
+        assert.match(h.api().simulationResult!.summary, /Configuration PASS/);
+        assert.ok(document.body.textContent?.includes('Check Configuration'));
+      }
+    }
+    const revision = h.api().canvasRevision;
+    await h.act(() => h.api().openLabReference(COURSE_LABS[10].references[0]));
+    assert.ok(h.api().canvasRevision > revision, 'fresh lab triggers fit-to-view');
+    const source = h.api().nodes.find(n => n.id === 'lab-source')!;
+    await h.act(() => h.api().updateNodeData(source.id, { customConfig: { ...source.data.customConfig, versioning: false } }));
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().simulationResult!.success, false);
+    assert.match(h.api().simulationResult!.summary, /source requires bucket versioning/);
+    assert.equal(COURSE_LABS[10].references[0].nodes.find(n => n.id === 'lab-source')!.data.customConfig!.versioning, true);
+    await h.act(() => h.api().loadTemplate('highly-available-multiaz'));
+    assert.equal(h.api().activeLabReference, null);
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().simulationResult!.success, true);
+    assert.doesNotMatch(h.api().simulationResult!.summary, /Configuration PASS/);
+  } finally { await h.unmount(); }
+});
+
+test('Loaded IAM lab keeps policy evaluation when run again', async () => {
+  const h = await mount();
+  try {
+    await h.act(() => h.api().openLabReference(COURSE_LABS[8].references[3]));
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().simulationResult!.success, false);
+    assert.ok(h.api().simulationResult!.steps.every(step => step.details?.decision?.component === 'IAM'));
+    await h.act(() => h.api().clearCanvas());
+    assert.equal(h.api().activeLabReference, null);
+  } finally { await h.unmount(); }
+});
+
+test('Lab configuration editor applies JSON and rejects malformed settings', async () => {
+  const h = await mount(true);
+  try {
+    await h.act(() => h.api().openLabReference(COURSE_LABS[9].references[0]));
+    await h.act(() => h.api().setSelectedNodeId('lab-edge-viewer'));
+    const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent === text)!;
+    await h.act(() => button('Config').click());
+    const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Lab configuration JSON"]')!;
+    assert.ok(textarea);
+    const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!;
+    const edit = async (value: string) => h.act(() => {
+      setValue.call(textarea, value);
+      textarea.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    });
+    await edit('{');
+    await h.act(() => button('Apply lab settings').click());
+    assert.match(document.querySelector('[role="alert"]')!.textContent!, /valid JSON object/);
+    assert.equal(h.api().nodes.find(n => n.id === 'lab-edge-viewer')!.data.customConfig!.version, '1');
+    await edit(JSON.stringify({ ...h.api().nodes.find(n => n.id === 'lab-edge-viewer')!.data.customConfig, version: '$LATEST' }));
+    await h.act(() => button('Apply lab settings').click());
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().simulationResult!.success, false);
+    assert.equal(h.api().simulationResult!.steps.find(step => step.id === 'lab-edge-viewer-version')!.status, 'failed');
+  } finally { await h.unmount(); }
+});
+
+
+test('Lab AZ failure respects customer subnet placement', async () => {
+  const h = await mount();
+  try {
+    await h.act(() => h.api().openLabReference(COURSE_LABS[1].references[0]));
+    await h.act(() => h.api().failAvailabilityZone('AZ-A'));
+    assert.equal(h.api().nodes.find(n => n.id === 'lab-probe')!.data.health, 'failed');
+    assert.equal(h.api().nodes.find(n => n.id === 'lab-nat')!.data.health, 'failed');
+    assert.equal(h.api().nodes.find(n => n.id === 'lab-bucket')!.data.health, 'healthy');
   } finally { await h.unmount(); }
 });

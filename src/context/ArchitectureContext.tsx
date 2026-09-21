@@ -40,6 +40,8 @@ import type { LabReference } from '../data/courseLabs.ts';
 import { runLabReference } from '../engine/labs/runLabReference.ts';
 
 interface ArchitectureContextType {
+  activeLabReference: LabReference | null;
+  canvasRevision: number;
   openLabReference: (reference: LabReference, run?: boolean) => void;
   nodes: Node<ServiceNodeData>[];
   setNodes: React.Dispatch<React.SetStateAction<Node<ServiceNodeData>[]>>;
@@ -208,6 +210,9 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   // Start with default VPC and Public/Private subnets on the canvas
   const [nodes, setNodes, rawOnNodesChange] = useNodesState<Node<any>>(createStarterNodes());
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<any>>([]);
+
+  const [activeLabReference, setActiveLabReference] = useState<LabReference | null>(null);
+  const [canvasRevision, setCanvasRevision] = useState(0);
 
   // Synchronize dynamic dimension changes (e.g. from NodeResizer) into node.data and node.style
   const onNodesChange = useCallback((changes: any[]) => {
@@ -831,6 +836,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Clear / Reset canvas to baseline starter VPC and Public/Private subnets
   const clearCanvas = useCallback(() => {
+    setActiveLabReference(null);
+    setCanvasRevision(value => value + 1);
     setNodes(createStarterNodes());
     setEdges([]);
     setActiveFailures([]);
@@ -938,6 +945,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const openLabReference = useCallback((reference: LabReference, run = false) => {
     const snapshot = structuredClone(reference);
+    setActiveLabReference(snapshot);
+    setCanvasRevision(value => value + 1);
     setNodes(snapshot.nodes);
     setEdges(snapshot.edges);
     setActiveFailures([]);
@@ -958,6 +967,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     const template = REFERENCE_ARCHITECTURES.find(t => t.id === templateId);
     if (!template) return;
 
+    setActiveLabReference(null);
+    setCanvasRevision(value => value + 1);
     setNodes(template.nodes);
     setEdges(template.edges);
     setActiveFailures([]);
@@ -993,28 +1004,33 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   // Run Request Simulation - against `effectiveNodes`/`effectiveEdges`, i.e. the canvas with every
   // active structured `Failure`'s real propagated consequence merged in (see
   // engine/failure/effectiveState.ts), not just the manually-toggled `health` field.
+  const evaluateCurrentScenario = useCallback(() => activeLabReference
+    ? runLabReference({ ...activeLabReference, nodes: effectiveNodes, edges: effectiveEdges, scenario })
+    : runSimulation(effectiveNodes, effectiveEdges, scenario),
+  [activeLabReference, effectiveNodes, effectiveEdges, scenario]);
+
   const runScenario = useCallback(() => {
-    const result = runSimulation(effectiveNodes, effectiveEdges, scenario);
+    const result = evaluateCurrentScenario();
     setSimulationResult(result);
     setActiveStepIndex(0);
     setHoveredStepIndex(null);
     setHighlightTaskFlow(true);
     setIsPlaying(true);
     setAppMode('simulate');
-  }, [effectiveNodes, effectiveEdges, scenario]);
+  }, [evaluateCurrentScenario]);
 
   // Toggle Task Flow lines on/off with smart auto-simulation
   const toggleTaskFlow = useCallback(() => {
     setHighlightTaskFlow((prev) => {
       const next = !prev;
       if (next && !simulationResult && nodes.length > 0) {
-        const result = runSimulation(effectiveNodes, effectiveEdges, scenario);
+        const result = evaluateCurrentScenario();
         setSimulationResult(result);
         setActiveStepIndex(null);
       }
       return next;
     });
-  }, [nodes, effectiveNodes, effectiveEdges, scenario, simulationResult]);
+  }, [nodes, evaluateCurrentScenario, simulationResult]);
 
   // Explain the recorded run, including service/return-path failures and cache short circuits.
   const requestTrace = useMemo<RequestTrace | null>(() =>
@@ -1372,6 +1388,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
         loadTemplate,
         openLabReference,
+        activeLabReference,
+        canvasRevision,
         activeChallenge,
         setActiveChallenge,
         challengeResult,
