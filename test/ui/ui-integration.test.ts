@@ -334,3 +334,216 @@ test('Lab AZ failure respects customer subnet placement', async () => {
     assert.equal(h.api().nodes.find(n => n.id === 'lab-bucket')!.data.health, 'healthy');
   } finally { await h.unmount(); }
 });
+
+test('ECS explorer is opt-in, persists component edits, groups services, and closes with Escape', async () => {
+  const h = await mount(true);
+  try {
+    await h.act(() => h.api().addServiceNode('ecs', { x: 0, y: 0 }));
+    const ecs = h.api().nodes.filter(n => n.data.serviceId === 'ecs').at(-1)!;
+    await h.act(() => h.api().updateNodeData(ecs.id, { customConfig: { sentinel: 'preserved', ecsWorkspace: { clusterName: 'test-cluster' } } }));
+    await h.act(() => h.api().setSelectedNodeId(ecs.id));
+    assert.equal(document.querySelector('[aria-label="ECS component details"]'), null);
+    const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
+    const opener = button('More information');
+    opener.focus();
+    await h.act(() => opener.click());
+    assert.ok(document.querySelector('[role="dialog"]'));
+    await h.act(() => button('Task definition · not configured').click());
+    await h.act(() => button('Add container').click());
+    assert.equal(h.api().nodes.find(n => n.id === ecs.id)!.data.customConfig!.ecsWorkspace.containers.length, 1);
+    assert.equal(h.api().nodes.find(n => n.id === ecs.id)!.data.customConfig!.sentinel, 'preserved');
+    const cluster = document.querySelector('[aria-label="ECS cluster boundary"]')!;
+    const serviceBoundary = cluster.querySelector('[aria-label^="Service boundary:"]')!;
+    const task = serviceBoundary.querySelector('[aria-label="Task snapshot 1"]')!;
+    assert.ok(task.querySelector('[aria-label^="Configure container"]'), 'containers must be nested inside tasks inside services inside the cluster');
+    await h.act(() => (task.querySelector('[aria-label^="Configure container"]') as HTMLButtonElement).click());
+    assert.match(document.querySelector('[aria-label="ECS component details"]')!.textContent!, /Container configuration/);
+    const nameInput = [...document.querySelectorAll('[aria-label="ECS component details"] label')].find(l => l.textContent === 'Container name')!.querySelector('input')!;
+    await h.act(() => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(nameInput, 'web-container');
+      nameInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    });
+    assert.match(task.textContent!, /web-container/);
+    await h.act(() => h.api().updateNodeData(ecs.id, { customConfig: { ...h.api().nodes.find(n => n.id === ecs.id)!.data.customConfig, ecs: { runningCount: 0, desiredCount: 3 } } }));
+    assert.equal(serviceBoundary.querySelectorAll('[aria-label^="Task snapshot "]').length, 0);
+    assert.match(serviceBoundary.textContent!, /No observed running tasks/);
+    await h.act(() => h.api().updateNodeData(ecs.id, { customConfig: { ...h.api().nodes.find(n => n.id === ecs.id)!.data.customConfig, ecs: { runningCount: 100, desiredCount: 100 } } }));
+    assert.equal(serviceBoundary.querySelectorAll('[aria-label^="Task snapshot "]').length, 6);
+    assert.match(serviceBoundary.textContent!, /94 more tasks/);
+
+    await h.act(() => button('EC2 · container instances').click());
+    const select = document.querySelector('[role="dialog"] select') as HTMLSelectElement;
+    await h.act(() => { select.value = 'FARGATE'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Fargate · AWS-managed compute/);
+    assert.doesNotMatch(document.querySelector('[aria-label="ECS component details"]')!.textContent!, /EC2 instance type/);
+    assert.equal(h.api().nodes.find(n => n.id === ecs.id)!.data.customConfig!.ecs.launchType, 'FARGATE');
+    await h.act(() => h.api().addServiceNode('ecs', { x: 200, y: 0 }));
+    const second = h.api().nodes.filter(n => n.data.serviceId === 'ecs').at(-1)!;
+    await h.act(() => h.api().updateNodeData(second.id, { customConfig: { ecsWorkspace: { clusterName: 'test-cluster', serviceName: 'Second service' } } }));
+    await h.act(() => h.api().setSelectedNodeId(ecs.id));
+    // Selection changes dismiss the overlay; reopen it explicitly.
+    await h.act(() => button('More information').click());
+    assert.equal(document.querySelectorAll('[aria-label="Cluster services"] > section').length, 2);
+    await h.act(() => button('Second service').click());
+    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Second service/);
+    const modal = document.querySelector('[role="dialog"]')!;
+    await h.act(() => modal.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    await h.act(() => button('More information').click());
+    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Fargate · AWS-managed compute/);
+  } finally { await h.unmount(); }
+});
+
+test('Service lessons follow their icons, preserve architecture, and distinguish scaling from RunTask', async () => {
+  const h = await mount(true);
+  try {
+    const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
+    const openService = async (service: string) => {
+      await h.act(() => h.api().addServiceNode(service, { x: 0, y: 0 }));
+      const node = h.api().nodes.filter(n => n.data.serviceId === service).at(-1)!;
+      await h.act(() => h.api().setSelectedNodeId(node.id));
+      await h.act(() => button('More information').click());
+      return node;
+    };
+    await openService('ecs');
+    assert.ok(document.querySelector('[aria-label="ECS cluster boundary"]'));
+    assert.equal(document.querySelector('[aria-label="ECS supporting concepts"]'), null);
+    assert.equal(document.querySelector('[aria-label="Scaling policy demonstration"]'), null);
+    await openService('sqs');
+    const lab = () => document.querySelector('[aria-label="Scaling policy demonstration"]')!;
+    assert.match(lab().textContent!, /backlog/);
+    const before = JSON.stringify(h.api().nodes);
+    const slider = lab().querySelector('input[type="range"]')!;
+    await h.act(() => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(slider, '300');
+      slider.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    });
+    await h.act(() => button('Animate scaling').click());
+    await h.act(() => button('Pause').click());
+    assert.match(lab().textContent!, /Capacity bounds 1–8: 6/);
+    await h.act(() => button('Next stage').click());
+    await h.act(() => button('Next stage').click());
+    assert.match(lab().textContent!, /Starting/);
+    await h.act(() => button('Next stage').click());
+    assert.match(lab().textContent!, /6 ready \/ 6 desired/);
+    assert.equal(JSON.stringify(h.api().nodes), before);
+    await h.act(() => button('Reset demo').click());
+    assert.match(lab().textContent!, /2 ready \/ 2 desired/);
+    const available = lab().querySelector('input[type="checkbox"]') as HTMLInputElement;
+    await h.act(() => available.click());
+    await h.act(() => button('Animate scaling').click());
+    assert.match(lab().textContent!, /Insufficient metric data/);
+    assert.equal(JSON.stringify(h.api().nodes), before);
+    await openService('nlb');
+    assert.equal(document.querySelector('[aria-label="Scaling policy demonstration"]'), null);
+    const routing = () => document.querySelector('[aria-label="Load balancer demonstration"]')!;
+    assert.match(routing().textContent!, /NLB · Layer 4/);
+    await h.act(() => button('Send on same TCP flow').click());
+    const receiving = () => [...routing().querySelectorAll('strong')].find(n => n.parentElement?.textContent?.includes('Receiving traffic'))?.textContent;
+    assert.equal(receiving(), 'api target 1');
+    await h.act(() => button('Send on same TCP flow').click());
+    assert.equal(receiving(), 'api target 1');
+    await h.act(() => button('Open new connection').click());
+    await h.act(() => button('Send on same TCP flow').click());
+    assert.equal(receiving(), 'api target 2');
+    assert.equal(routing().querySelectorAll('select').length, 1, 'NLB cannot switch itself to an ALB');
+    await openService('alb');
+    assert.match(routing().textContent!, /ALB · Layer 7/);
+    await h.act(() => button('Send HTTP request').click());
+    assert.equal(receiving(), 'api target 1');
+    const path = routing().querySelector('select')!;
+    await h.act(() => { path.value = '/'; path.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+    await h.act(() => button('Send HTTP request').click());
+    assert.equal(receiving(), 'web target 1');
+    assert.equal(routing().querySelector('[aria-label="Load balancer boundary"]')!.querySelector('[aria-label="api example target group"]'), null);
+    await openService('eventbridge');
+    const events = () => document.querySelector('[aria-label="EventBridge task invocation demonstration"]')!;
+    const eventBefore = JSON.stringify(h.api().nodes);
+    await h.act(() => button('Publish example event').click());
+    assert.match(events().textContent!, /1 standalone task examples/);
+    assert.match(events().textContent!, /desired count 2 \(unchanged\)/);
+    const eventSelect = events().querySelector('select')!;
+    await h.act(() => { eventSelect.value = 'OrderCancelled'; eventSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+    await h.act(() => button('Publish example event').click());
+    assert.match(events().textContent!, /Event did not match/);
+    assert.match(events().textContent!, /1 standalone task examples/);
+    assert.equal(JSON.stringify(h.api().nodes), eventBefore);
+    assert.doesNotMatch(events().textContent!, /ChangeInCapacity/);
+    await openService('cloudwatch');
+    assert.match(lab().textContent!, /CloudWatch provides metrics and alarms/);
+    assert.equal([...lab().querySelectorAll('option')].some(o => o.value === 'scheduled'), false);
+    const policy = lab().querySelector('select')!;
+    await h.act(() => { policy.value = 'step'; policy.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+    for (const expression of ['ChangeInCapacity', 'PercentChangeInCapacity', 'ExactCapacity']) assert.match(lab().textContent!, new RegExp(expression));
+    await openService('ec2_auto_scaling');
+    assert.match(lab().textContent!, /EC2 Auto Scaling group/);
+    assert.ok([...lab().querySelectorAll('option')].some(o => o.value === 'scheduled'));
+    await openService('eventbridge_scheduler');
+    assert.match(events().textContent!, /Schedule → RunTask/);
+    await openService('ecr_registry');
+    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /ECR repository/);
+  } finally { await h.unmount(); }
+});
+
+test('Draft roundtrip restores workspace, scenario, failures, results and viewport; malformed import is atomic', async () => {
+  const h = await mount();
+  try {
+    await h.act(() => h.api().loadTemplate('highly-available-multiaz'));
+    await h.act(() => {
+      h.api().setScenario(s => ({ ...s, path: '/saved-draft' }));
+      h.api().setDraftViewport({ x: 42, y: -30, zoom: 0.8 });
+      h.api().setPlaybackSpeed(2);
+      h.api().injectFailure({ targetResourceId: 'node-ecs-az-a', failureType: 'instance_unavailable', severity: 'high', trigger: 'manual' });
+    });
+    await h.act(() => h.api().runScenario());
+    await h.act(() => h.api().setIsPlaying(false));
+    const saved = h.api().exportDraft();
+    const snapshot = JSON.parse(saved).state;
+    await h.act(() => h.api().clearCanvas());
+    await h.act(() => h.api().importDraft(saved));
+    assert.deepStrictEqual(h.api().scenario, snapshot.scenario);
+    assert.deepStrictEqual(h.api().activeFailures, snapshot.activeFailures);
+    assert.deepStrictEqual(h.api().simulationResult, snapshot.simulationResult);
+    assert.deepStrictEqual(h.api().draftViewport, snapshot.viewport);
+    assert.equal(h.api().nodes.length, snapshot.nodes.length);
+    assert.equal(h.api().edges.length, snapshot.edges.length);
+    assert.equal(h.api().isPlaying, false);
+    assert.equal(h.api().playbackSpeed, 2);
+    const before = h.api().nodes;
+    assert.throws(() => h.api().importDraft('{"version":99}'), /Unsupported/);
+    assert.strictEqual(h.api().nodes, before);
+    const broken = JSON.parse(saved); broken.state.edges[0].target = 'missing';
+    assert.throws(() => h.api().importDraft(JSON.stringify(broken)), /missing nodes/);
+    assert.strictEqual(h.api().nodes, before);
+  } finally { await h.unmount(); }
+});
+
+test('Release indicator offers same-channel update and restores a tab recovery draft', async () => {
+  const { ReleaseStatus } = await import('../../src/components/layout/ReleaseStatus.tsx');
+  const { UPDATE_RECOVERY_KEY } = await import('../../src/engine/releases/release.ts');
+  const previousFetch = globalThis.fetch;
+  const previousStorage = (globalThis as any).sessionStorage;
+  (globalThis as any).sessionStorage = dom.window.sessionStorage;
+  const h = await mount();
+  let saved: string;
+  try { saved = h.api().exportDraft(); } finally { await h.unmount(); }
+  dom.window.sessionStorage.setItem(UPDATE_RECOVERY_KEY, saved!);
+  globalThis.fetch = (async () => ({ ok: true, json: async () => ({ version: '1.1.0', buildId: 'new-build', channel: 'preview', draftVersion: 2 }) })) as any;
+  const root = createRoot(document.getElementById('root')!);
+  const oldConfirm = window.confirm;
+  window.confirm = () => true;
+  try {
+    await act(async () => root.render(React.createElement(ArchitectureProvider, null, React.createElement(ReleaseStatus))));
+    assert.match(document.body.textContent ?? '', /preview/);
+    assert.match(document.body.textContent ?? '', /Update available/);
+    const restore = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.includes('Restore work'))!;
+    assert.ok(restore);
+    await act(async () => restore.click());
+    assert.equal(dom.window.sessionStorage.getItem(UPDATE_RECOVERY_KEY), null);
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = previousFetch;
+    (globalThis as any).sessionStorage = previousStorage;
+    window.confirm = oldConfirm;
+  }
+});

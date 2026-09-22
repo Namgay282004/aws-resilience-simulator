@@ -1,3 +1,4 @@
+import { DraftControls } from './DraftControls.tsx';
 import React, { useState } from 'react';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 import { REFERENCE_ARCHITECTURES } from '../../data/referenceArchitectures.ts';
@@ -85,6 +86,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
         </div>
       </div>
+
+      <DraftControls />
 
       {/* Mode Switcher / Primary Tabs */}
       <nav className="flex items-center gap-0.5 bg-black/25 p-1 rounded-lg border border-white/10">

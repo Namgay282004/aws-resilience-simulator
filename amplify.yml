@@ -3,9 +3,13 @@ frontend:
   phases:
     preBuild:
       commands:
+        - nvm install 22
+        - nvm use 22
         - npm ci
+        - npm test
     build:
       commands:
+        - 'export RELEASE_CHANNEL=preview; if [ "$AWS_BRANCH" = "main" ]; then export RELEASE_CHANNEL=stable; fi'
         - npm run build
   artifacts:
     baseDirectory: dist

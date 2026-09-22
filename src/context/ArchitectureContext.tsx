@@ -1,3 +1,5 @@
+import { parseDraft, serializeDraft } from '../engine/persistence/draft.ts';
+import type { Viewport } from '@xyflow/react';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import {
   Node,
@@ -40,6 +42,10 @@ import type { LabReference } from '../data/courseLabs.ts';
 import { runLabReference } from '../engine/labs/runLabReference.ts';
 
 interface ArchitectureContextType {
+  exportDraft: () => string;
+  importDraft: (text: string) => void;
+  draftViewport: Viewport | null;
+  setDraftViewport: (viewport: Viewport) => void;
   activeLabReference: LabReference | null;
   canvasRevision: number;
   openLabReference: (reference: LabReference, run?: boolean) => void;
@@ -213,6 +219,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const [activeLabReference, setActiveLabReference] = useState<LabReference | null>(null);
   const [canvasRevision, setCanvasRevision] = useState(0);
+  const [draftViewport, setDraftViewport] = useState<Viewport | null>(null);
 
   // Synchronize dynamic dimension changes (e.g. from NodeResizer) into node.data and node.style
   const onNodesChange = useCallback((changes: any[]) => {
@@ -503,6 +510,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
       },
       data: {
         protocol: defaultProtocol,
+        lineStyle: 'straight',
         interactionType: 'synchronous',
         isCriticalDependency: true,
         timeoutMs: 2500
@@ -837,6 +845,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   // Clear / Reset canvas to baseline starter VPC and Public/Private subnets
   const clearCanvas = useCallback(() => {
     setActiveLabReference(null);
+    setDraftViewport(null);
     setCanvasRevision(value => value + 1);
     setNodes(createStarterNodes());
     setEdges([]);
@@ -946,6 +955,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   const openLabReference = useCallback((reference: LabReference, run = false) => {
     const snapshot = structuredClone(reference);
     setActiveLabReference(snapshot);
+    setDraftViewport(null);
     setCanvasRevision(value => value + 1);
     setNodes(snapshot.nodes);
     setEdges(snapshot.edges);
@@ -968,6 +978,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     if (!template) return;
 
     setActiveLabReference(null);
+    setDraftViewport(null);
     setCanvasRevision(value => value + 1);
     setNodes(template.nodes);
     setEdges(template.edges);
@@ -1313,9 +1324,29 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     setChallengeResult(res);
   }, [activeChallenge, nodes, edges, analysis, simulationResult, validationFindings, architecturalFindings]);
 
+  const exportDraft = () => serializeDraft({ nodes, edges, scenario, simulationResult,
+    activeFailures, activeLabReference, activeChallengeId: activeChallenge?.id ?? null,
+    challengeResult, appMode, selectedNodeId, selectedEdgeId, activeStepIndex,
+    playbackSpeed, highlightTaskFlow, showNaclSideColumn, viewport: draftViewport });
+  const importDraft = (text: string) => {
+    const draft = parseDraft(text);
+    const challenge = draft.activeChallengeId ? STUDENT_CHALLENGES.find(c => c.id === draft.activeChallengeId) : null;
+    if (draft.activeChallengeId && !challenge) throw new Error('This draft references a challenge unavailable in this version.');
+    setIsPlaying(false); setHoveredStepIndex(null);
+    setNodes(draft.nodes); setEdges(draft.edges); setScenario(draft.scenario);
+    setSimulationResult(draft.simulationResult); setActiveFailures(draft.activeFailures);
+    setActiveLabReference(draft.activeLabReference); setActiveChallenge(challenge ?? null);
+    setChallengeResult(draft.challengeResult); setAppMode(draft.appMode);
+    setSelectedNodeId(draft.selectedNodeId); setSelectedEdgeId(draft.selectedEdgeId);
+    setActiveStepIndex(draft.activeStepIndex); setPlaybackSpeed(draft.playbackSpeed);
+    setHighlightTaskFlow(draft.highlightTaskFlow); setShowNaclSideColumn(draft.showNaclSideColumn);
+    setDraftViewport(draft.viewport); setCanvasRevision(value => value + 1);
+  };
+
   return (
     <ArchitectureContext.Provider
       value={{
+        exportDraft, importDraft, draftViewport, setDraftViewport,
         nodes,
         setNodes,
         onNodesChange,

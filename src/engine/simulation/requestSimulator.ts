@@ -1,3 +1,7 @@
+import { evaluateLiveRoute } from '../network/liveRouting.ts';
+import { validateNetworkIdentities } from '../architecture/networkIdentity.ts';
+import { deriveSubnetForNode } from '../layout/containment.ts';
+import { carriesRequest, isDependencyCall } from '../architecture/relationships.ts';
 import { authorizeApplicationHop } from '../iam/applicationHop.ts';
 import { IAM_CALLER_SERVICE_IDS, IAM_AUTHENTICATED_ACTIONS } from '../capability/iamCoverage.ts';
 import type { Node, Edge } from '@xyflow/react';
@@ -22,6 +26,14 @@ export function runSimulation(
   scenario: SimulationScenario,
   options: { enforceIam?: boolean } = {}
 ): SimulationResult {
+  const identityIssues = validateNetworkIdentities(nodes);
+  if (identityIssues.length) return {
+    scenario, steps: [], success: false, totalLatencyMs: 0, statusCode: 400,
+    summary: `Invalid network identity: ${identityIssues.map(issue => issue.problem).join(' ')}`,
+    bottlenecksDetected: [], path: [], cascadeOccurred: false
+  };
+  nodes = nodes.map(node => node.data.networkIdentity?.subnetId !== undefined
+    ? { ...node, data: { ...node.data, subnet: deriveSubnetForNode(node, nodes) } } : node);
   const trace = new SimulationTrace();
 
   const boundaryNodes = nodes.filter(n => n.type === 'boundaryNode');
@@ -86,6 +98,19 @@ export function runSimulation(
   // produces no step at all, so every other reference architecture (none of which set these
   // fields) is unaffected. Returns whether the caller should stop traversal.
   const pushFirewallBlockIfAny = (source: Node<ServiceNodeData>, target: Node<ServiceNodeData>, protocol: string): boolean => {
+    const routing = evaluateLiveRoute(source, target, nodes);
+    if (routing.outcome !== 'legacy') {
+      const allowed = routing.outcome === 'allowed';
+      trace.pushStep({ sourceNodeId: source.id, targetNodeId: target.id,
+        sourceNodeName: source.data.label, targetNodeName: target.data.label,
+        protocol: protocol as any, action: `Route evaluation: ${routing.outcome}`,
+        status: allowed ? 'success' : 'failed', explanation: routing.reason,
+        targetHealth: target.data.health, latencyMs: 0 });
+      if (!allowed) {
+        trace.fail(routing.outcome === 'unsupported' ? 501 : routing.outcome === 'invalid' ? 400 : 504, routing.reason);
+        return true;
+      }
+    }
     const firewall = checkNetworkFirewalls(protocol, target, boundaryNodes, source);
 
     for (const layer of [
@@ -211,8 +236,8 @@ export function runSimulation(
     // once per hop, before running the pipeline, since several adapters need them and none of
     // the adapters that run earlier in the pipeline depend on or mutate them.
     const sourceEdges = edges.filter(e => e.source === currentNode!.id && (e.data as any)?.signalType !== 'outbound_response');
-    const outgoingEdges = sourceEdges.filter(e => e.data?.traversal !== 'dependency');
-    const dependencyEdges = sourceEdges.filter(e => e.data?.traversal === 'dependency');
+    const outgoingEdges = sourceEdges.filter(e => carriesRequest(e.data));
+    const dependencyEdges = sourceEdges.filter(e => isDependencyCall(e.data));
     const downstreamNodeIds = outgoingEdges.map(e => e.target);
     const downstreamNodes = nodes.filter(n => downstreamNodeIds.includes(n.id) && n.type !== 'boundaryNode' && (n.data as any)?.serviceId);
 

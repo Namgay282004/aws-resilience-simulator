@@ -70,7 +70,16 @@ export interface AWSService {
   };
 }
 
+export interface NetworkIdentity {
+  privateIp?: string;
+  subnetId?: string;
+  vpcId?: string;
+  routeTableId?: string;
+}
+
 export interface ServiceNodeData extends Record<string, unknown> {
+  /** Explicit relationships override canvas placement; absent fields retain legacy behavior. */
+  networkIdentity?: NetworkIdentity;
   serviceId: string;
   label: string;
   category: ServiceCategory;
@@ -103,6 +112,8 @@ export interface ServiceNodeData extends Record<string, unknown> {
 export type FlowStatus = 'active' | 'completed' | 'pending' | 'failed' | 'dimmed' | 'idle';
 
 export interface ConnectionData extends Record<string, unknown> {
+  /** Structural relationships never act as forwarding hops. Legacy edges default to request. */
+  relationship?: import('../engine/architecture/relationships.ts').RelationshipKind;
   protocol: ProtocolType;
   label?: string;
   stepNumber?: number;
@@ -129,6 +140,9 @@ export interface ConnectionData extends Record<string, unknown> {
   signalType?: 'inbound_request' | 'outbound_response';
   hasMissingReturnBlock?: boolean;
   signalLabel?: string;
+  /** Diagram-only appearance. Straight uses right-angle bends when unaligned;
+   * orthogonal is a legacy alias. Omitted values use the straight default. */
+  lineStyle?: 'curved' | 'straight' | 'orthogonal';
   curveOffset?: number;
 }
 

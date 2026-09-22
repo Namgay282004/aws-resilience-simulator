@@ -1,3 +1,4 @@
+import { validateNetworkIdentities } from '../architecture/networkIdentity.ts';
 import type { Node, Edge } from '@xyflow/react';
 import type { ServiceNodeData, ConnectionData } from '../../types/index.ts';
 import type { Finding } from '../findings.ts';
@@ -22,6 +23,7 @@ export function validateArchitecture(
   edges: Edge<ConnectionData>[]
 ): Finding[] {
   return [
+    ...validateNetworkIdentities(nodes),
     ...validateCidrs(nodes),
     ...validateNetwork(nodes, edges),
     ...validateRules(nodes),

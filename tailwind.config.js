@@ -1,3 +1,5 @@
+import defaultTheme from 'tailwindcss/defaultTheme.js';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -7,6 +9,17 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Increase text by 2px without changing rem-based spacing or component sizes.
+      fontSize: Object.fromEntries(Object.entries(defaultTheme.fontSize).map(([name, value]) => {
+        const [size, options] = value;
+        const lineHeight = Number.parseFloat(options.lineHeight);
+        return [name, [`calc(${size} + 2px)`, {
+          ...options,
+          lineHeight: options.lineHeight.endsWith('rem')
+            ? `calc(${options.lineHeight} + 2px)`
+            : String(lineHeight),
+        }]];
+      })),
       fontFamily: {
         // IBM Plex Sans/Mono are drawn together from one type family (an engineering-heritage
         // pairing, not the Roboto everyone's Tailwind starter reaches for) - a deliberate choice

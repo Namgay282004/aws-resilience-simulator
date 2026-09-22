@@ -95,6 +95,11 @@ function findSmallestContainingBoundary(
  * simulator's NACL check) can read rule data off it.
  */
 export function findContainingSubnetBoundary(node: Node<any>, boundaryNodes: Node<any>[]): Node<any> | null {
+  const subnetId = node.data?.networkIdentity?.subnetId;
+  if (subnetId !== undefined) {
+    return boundaryNodes.find(b => b.id === subnetId && b.type === 'boundaryNode' &&
+      ['public_subnet', 'private_subnet'].includes(b.data?.boundaryType)) ?? null;
+  }
   const center = rectCenter(getServiceNodeRect(node));
   return findSmallestContainingBoundary(center, boundaryNodes, ['public_subnet', 'private_subnet']);
 }
@@ -103,7 +108,7 @@ export function findContainingSubnetBoundary(node: Node<any>, boundaryNodes: Nod
  * Resolves the Security Group boundary node(s) attached to a service node, exactly like real
  * AWS: attachment is an explicit reference (`data.securityGroupIds`) an instance carries, not a
  * function of where it happens to sit on the canvas. This deliberately differs from subnet/VPC
- * placement, which genuinely is geometric in real AWS - a Security Group is not.
+ * placement, whose legacy canvas representation uses geometry. AWS membership itself is explicit.
  */
 export function getAttachedSecurityGroups(node: Node<any>, allNodes: Node<any>[]): Node<any>[] {
   const ids: string[] = (node.data as any)?.securityGroupIds || [];
@@ -158,6 +163,10 @@ export function findContainingVpc(
   subnetBoundaryNode: Node<any>,
   boundaryNodes: Node<any>[]
 ): Node<any> | null {
+  const vpcId = subnetBoundaryNode.data?.networkIdentity?.vpcId;
+  if (vpcId !== undefined) {
+    return boundaryNodes.find(b => b.id === vpcId && b.type === 'boundaryNode' && b.data?.boundaryType === 'vpc') ?? null;
+  }
   const subnetRect = getBoundaryRect(subnetBoundaryNode);
   const center = rectCenter(subnetRect);
 

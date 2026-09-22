@@ -3,6 +3,7 @@
 // src/engine/network/ (Phase 5) and src/engine/layout/containment.ts, with no ServiceModel of
 // their own - see SERVICE_ENGINE_DEVIATIONS.md §1): VPC, Internet Gateway, NAT Gateway, the
 // decorative Route Table node, and the two VPC Endpoint types.
+import { validateEndpoint } from '../../network/vpcEndpoint.ts';
 import { validateNatGatewayPlacement } from '../../network/nat.ts';
 import type { ServiceModel, ServiceRequestOutcome } from '../types.ts';
 
@@ -78,7 +79,7 @@ function buildVpcEndpointModel(id: string, kind: 'gateway' | 'interface', descri
     id,
     tier: 2,
     description,
-    validateConfiguration: () => [],
+    validateConfiguration: node => validateEndpoint(node).map(message => ({ field: 'endpointService', message })),
     resolveEndpoints: () => ({ requiresEni: kind === 'interface', isIngressProxy: false, isManagedEventTarget: false, isVpcEndpoint: kind }),
     canReceive: () => ({ ok: true }),
     canSend: () => ({ ok: true }),

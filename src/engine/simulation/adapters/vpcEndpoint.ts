@@ -1,6 +1,8 @@
 import type { AdapterContext, AdapterSignal } from './types.ts';
 import { CONTINUE, TERMINATE, advanceTo } from './types.ts';
 
+import { evaluateEndpoint, isVpcEndpoint } from '../../network/vpcEndpoint.ts';
+
 const ENDPOINT_SERVICE_IDS = ['s3_gateway_endpoint', 'privatelink'];
 
 /**
@@ -10,6 +12,21 @@ const ENDPOINT_SERVICE_IDS = ['s3_gateway_endpoint', 'privatelink'];
  */
 export const vpcEndpointAdapter = (ctx: AdapterContext): AdapterSignal => {
   const { trace, node, downstreamNodes, pushFirewallBlockIfAny } = ctx;
+
+  // Validate endpoint egress before generic forwarding can treat it as a router.
+  if (isVpcEndpoint(node.data)) {
+    const destination = downstreamNodes.find(candidate => !ctx.visited.has(candidate.id)) || downstreamNodes[0];
+    if (!destination) return CONTINUE;
+    const decision = evaluateEndpoint(node.data, destination.data.serviceId);
+    if (!decision.allowed) {
+      trace.pushStep({ sourceNodeId: node.id, targetNodeId: destination.id,
+        sourceNodeName: node.data.label, targetNodeName: destination.data.label,
+        protocol: 'HTTPS', action: 'VPC endpoint service validation', status: 'failed',
+        explanation: decision.reason, targetHealth: destination.data.health, latencyMs: 0 });
+      trace.fail(400, decision.reason);
+      return TERMINATE;
+    }
+  }
 
   const endpointTarget = downstreamNodes.find(n => ENDPOINT_SERVICE_IDS.includes(n.data.serviceId));
   const sourceIsPrivate = node.data.subnet === 'private' || node.data.subnet === 'isolated';

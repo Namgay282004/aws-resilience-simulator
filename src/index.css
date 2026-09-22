@@ -5,6 +5,7 @@
 @layer base {
   body {
     @apply bg-white text-slate-800;
+    font-size: calc(1rem + 2px);
     font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -79,3 +80,28 @@
   pointer-events: none;
 }
 
+
+/* ECS educational demo: motion only follows an explicit user action. */
+@keyframes ecs-demo-arrive {
+  from { opacity: 0.25; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ecs-demo-packet {
+  from { transform: translateY(-10px); opacity: 0.3; }
+  to { transform: translateY(5px); opacity: 1; }
+}
+.ecs-demo-arrive { animation: ecs-demo-arrive 450ms ease-out; }
+.ecs-demo-packet { animation: ecs-demo-packet 550ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .ecs-demo-arrive, .ecs-demo-packet { animation: none; }
+}
+
+/* Compact labels use explicit pixel sizes rather than the Tailwind type scale.
+   Apply the same global 2px increase to these existing utility classes. */
+@layer utilities {
+  .text-\[8px\] { font-size: 10px; }
+  .text-\[9px\] { font-size: 11px; }
+  .text-\[10px\] { font-size: 12px; }
+  .text-\[11px\] { font-size: 13px; }
+  .text-\[12px\] { font-size: 14px; }
+}

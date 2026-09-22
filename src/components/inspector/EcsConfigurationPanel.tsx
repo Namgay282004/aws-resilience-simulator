@@ -1,3 +1,4 @@
+import React from 'react';
 import type { ServiceNodeData } from '../../types/index.ts';
 import { ecsConfiguration } from '../../engine/service/models/ecs.ts';
 

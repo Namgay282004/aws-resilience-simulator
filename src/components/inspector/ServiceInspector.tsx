@@ -1,6 +1,12 @@
+import { NetworkIdentityPanel } from './NetworkIdentityPanel.tsx';
+import { SUBNET_REQUIRED_SERVICE_IDS } from '../../engine/layout/containment.ts';
+import { relationshipKind, type RelationshipKind } from '../../engine/architecture/relationships.ts';
+import { EndpointConfigurationPanel } from './EndpointConfigurationPanel.tsx';
 import { supportsSecurityGroupAttachment } from '../../engine/network/securityGroupAttachment.ts';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LabConfigurationPanel } from './LabConfigurationPanel.tsx';
+import { ServiceBehaviorExplorer, BEHAVIOR_EXPLORER_SERVICES } from '../learning/ServiceBehaviorExplorer.tsx';
+import { EcsExplorer } from '../ecs/EcsExplorer.tsx';
 import { EcsConfigurationPanel } from './EcsConfigurationPanel.tsx';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 import { SERVICE_MAP } from '../../data/serviceCatalog.ts';
@@ -76,6 +82,9 @@ export const ServiceInspector: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'config' | 'learn'>('overview');
   const [showAttachSgMenu, setShowAttachSgMenu] = useState(false);
+  const [serviceExplorerNodeId, setServiceExplorerNodeId] = useState<string | null>(null);
+
+  useEffect(() => { setServiceExplorerNodeId(null); }, [selectedNode?.id]);
 
   if (!selectedNode && !selectedEdge) {
     return null;
@@ -189,6 +198,21 @@ export const ServiceInspector: React.FC = () => {
             )}
           </div>
 
+          <div>
+            <label htmlFor="connection-line-style" className="block text-xs font-semibold text-slate-700 mb-1">
+              Connection line style
+            </label>
+            <select
+              id="connection-line-style"
+              value={selectedEdge.data?.lineStyle === 'orthogonal' ? 'straight' : selectedEdge.data?.lineStyle ?? 'straight'}
+              onChange={event => updateEdgeData(selectedEdge.id, { lineStyle: event.target.value as 'curved' | 'straight' })}
+              className="w-full px-3 py-2 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-circuit-600"
+            >
+              <option value="curved">Curved</option>
+              <option value="straight">Straight</option>
+            </select>
+          </div>
+
           {/* Step Sequence Number */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -225,6 +249,19 @@ export const ServiceInspector: React.FC = () => {
               <option value="TCP">TCP / Raw Socket</option>
             </select>
           </div>
+
+          <label className="block text-xs font-semibold text-slate-700">
+            Connection meaning
+            <select className="block w-full border rounded p-2 mt-1" value={relationshipKind(selectedEdge.data)}
+              onChange={e => updateEdgeData(selectedEdge.id, { relationship: e.target.value as RelationshipKind })}>
+              <option value="request">Request path</option>
+              <option value="dependency">Dependency call</option>
+              <option value="manages">Manages resource</option>
+              <option value="route-association">Route association</option>
+              <option value="target-registration">Target registration</option>
+            </select>
+            <span className="block font-normal text-slate-500 mt-1">Structural relationships do not carry requests. Management, route association and target registration behavior is not yet simulated.</span>
+          </label>
 
           {/* Coupling Mode */}
           <div>
@@ -997,6 +1034,8 @@ export const ServiceInspector: React.FC = () => {
 
   return (
     <aside className="w-80 bg-white border-l border-slate-200 flex flex-col h-full flex-shrink-0 z-20 shadow-md overflow-hidden">
+      {serviceExplorerNodeId === selectedNode.id && nodeData.serviceId === 'ecs' && <EcsExplorer key={selectedNode.id} nodeId={selectedNode.id} nodes={nodes} edges={edges} onUpdate={updateNodeData} onClose={() => setServiceExplorerNodeId(null)} />}
+      {serviceExplorerNodeId === selectedNode.id && BEHAVIOR_EXPLORER_SERVICES.includes(nodeData.serviceId) && <ServiceBehaviorExplorer key={selectedNode.id} node={selectedNode} nodes={nodes} edges={edges} onUpdate={updateNodeData} onClose={() => setServiceExplorerNodeId(null)} />}
       {/* Header */}
       <div className="p-4 border-b border-slate-200 bg-white">
         <div className="flex items-start justify-between gap-2">
@@ -1019,6 +1058,9 @@ export const ServiceInspector: React.FC = () => {
           </button>
         </div>
 
+        {(nodeData.serviceId === 'ecs' || BEHAVIOR_EXPLORER_SERVICES.includes(nodeData.serviceId)) && <button onClick={() => setServiceExplorerNodeId(selectedNode.id)} className="mt-3 w-full min-h-11 flex items-center justify-center gap-2 rounded-lg border border-circuit-600 bg-circuit-50 text-circuit-800 text-sm font-semibold hover:bg-circuit-100 focus-visible:outline-circuit-600">
+          <Maximize2 size={16} aria-hidden="true" /> More information
+        </button>}
         {/* Status Bar with Simulate Failure toggle */}
         <div className="mt-3 flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 shadow-xs">
           <div className="flex items-center gap-1.5 text-xs">
@@ -1458,6 +1500,9 @@ export const ServiceInspector: React.FC = () => {
             {/* SERVICE-SPECIFIC AWS CONFIGURATION (EC2, S3, RDS, etc.) */}
             {/* ---------------------------------------------------- */}
             {activeLabReference?.configurationChecks && nodeData.customConfig && <LabConfigurationPanel key={selectedNode.id} config={nodeData.customConfig} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
+            {nodeData.serviceId === 'route_tables' && <LabConfigurationPanel key={selectedNode.id} config={nodeData.customConfig ?? { routeTable: { routes: [] } }} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
+            {SUBNET_REQUIRED_SERVICE_IDS.includes(nodeData.serviceId) && <NetworkIdentityPanel data={nodeData} nodes={nodes} onChange={networkIdentity => updateNodeData(selectedNode.id, { networkIdentity })} />}
+            {['s3_gateway_endpoint', 'privatelink'].includes(nodeData.serviceId) && <EndpointConfigurationPanel data={nodeData} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
             {nodeData.serviceId === 'ecs' && <EcsConfigurationPanel data={nodeData} onChange={(customConfig) => updateNodeData(selectedNode.id, { customConfig })} />}
             {nodeData.serviceId === 'ec2' && (
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">

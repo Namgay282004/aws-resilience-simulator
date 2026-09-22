@@ -1,0 +1,13 @@
+{
+  "format": "aws-architecture-lab", "version": 1, "savedAt": "2026-09-22T00:00:00Z",
+  "state": {
+    "nodes": [{"id":"bucket","type":"serviceNode","position":{"x":123,"y":456},"data":{"serviceId":"s3","label":"Student bucket","health":"healthy","subnet":"global","customConfig":{"versioning":true}}}],
+    "edges": [],
+    "scenario": {"id":"saved","name":"Saved request","path":"/lesson","method":"GET","trafficLevel":"normal","startNodeId":"bucket"},
+    "simulationResult": null, "activeFailures": [], "activeLabReference": null,
+    "activeChallengeId": null, "challengeResult": null, "appMode":"design",
+    "selectedNodeId":"bucket", "selectedEdgeId":null, "activeStepIndex":null,
+    "playbackSpeed":1,"highlightTaskFlow":true,"showNaclSideColumn":false,
+    "viewport":{"x":10,"y":20,"zoom":0.8}
+  }
+}

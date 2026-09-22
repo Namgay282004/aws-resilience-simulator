@@ -1,9 +1,5 @@
-// Deterministic route resolution: given a Route Table and a destination, picks exactly the route
-// real AWS would pick (longest-prefix-match), and explains why every other candidate route was
-// not selected. This is new, additive infrastructure (docs/target-architecture/NETWORK_ENGINE.md
-// §4/§Phase-4) - nothing in the existing simulator constructs a RouteTable today, so this module
-// has zero effect on any existing reference architecture until a caller opts in by attaching
-// `data.routeTable` to a VPC or subnet boundary node.
+// Deterministic IPv4 longest-prefix selection, shared by standalone tests and liveRouting.ts.
+// Live enforcement is opt-in via explicit route-table associations; see the progress roadmap.
 import { cidrContains, parseCidr, pickMostSpecific } from './cidr.ts';
 
 export type RouteTargetType = 'local' | 'igw' | 'nat' | 'vpce' | 'peering' | 'tgw';

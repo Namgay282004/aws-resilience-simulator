@@ -1,5 +1,6 @@
 import type { AdapterContext, AdapterSignal } from './types.ts';
 import { TERMINATE, advanceTo } from './types.ts';
+import { evaluateEndpoint } from '../../network/vpcEndpoint.ts';
 import { resolveNatEgress } from '../../network/nat.ts';
 
 const VPC_HOSTED_INGRESS_SERVICE_IDS = ['alb', 'nlb', 'api_gateway', 'app_runner', 'ec2', 'ecs', 'fargate'];
@@ -171,7 +172,7 @@ export const networkPathAdapter = (ctx: AdapterContext): AdapterSignal => {
   const isExternalTarget = nextNode.data.subnet === 'global' || ['api_client', 'user'].includes(nextNode.data.serviceId);
 
   if (isPrivateSource && isExternalTarget && !['rds', 'dynamodb'].includes(nextNode.data.serviceId)) {
-    const vpcEndpoint = nodes.find(n => ENDPOINT_SERVICE_IDS.includes(n.data.serviceId) && n.data.health !== 'failed');
+    const vpcEndpoint = nodes.find(n => ENDPOINT_SERVICE_IDS.includes(n.data.serviceId) && evaluateEndpoint(n.data, nextNode.data.serviceId).allowed);
     const natGateway = nodes.find(n => n.data.serviceId === 'nat_gateway');
 
     if (vpcEndpoint && ['s3', 'dynamodb'].includes(nextNode.data.serviceId)) {

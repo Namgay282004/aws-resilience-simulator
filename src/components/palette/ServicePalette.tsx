@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useId } from 'react';
 import { AWS_SERVICES } from '../../data/serviceCatalog.ts';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 import { AwsServiceIcon } from '../icons/AwsServiceIcons.tsx';
@@ -6,7 +6,9 @@ import {
   Search,
   Plus,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import { ServiceInfoModal } from './ServiceInfoModal.tsx';
 
@@ -146,6 +148,8 @@ const BOUNDARY_DEFINITIONS: BoundaryDef[] = [
 
 export const ServicePalette: React.FC = () => {
   const { addServiceNode, addBoundaryNode } = useArchitecture();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const contentId = useId();
   const [activeTab, setActiveTab] = useState<'services' | 'boundaries'>('services');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('All');
@@ -228,7 +232,22 @@ export const ServicePalette: React.FC = () => {
   }, [searchQuery]);
 
   return (
-    <aside className="w-72 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 select-none z-10">
+    <aside aria-label="AWS service palette" className={`${isCollapsed ? 'w-12' : 'w-72'} bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 select-none z-10`}>
+      <div className={`flex items-center border-b border-slate-200 ${isCollapsed ? 'justify-center' : 'justify-between pl-3'}`}>
+        {!isCollapsed && <span className="text-xs font-semibold text-slate-700">Service library</span>}
+        <button
+          type="button"
+          aria-label={isCollapsed ? 'Expand services sidebar' : 'Collapse services sidebar'}
+          title={isCollapsed ? 'Expand services sidebar' : 'Collapse services sidebar'}
+          aria-expanded={!isCollapsed}
+          aria-controls={contentId}
+          onClick={() => setIsCollapsed(previous => !previous)}
+          className="w-11 h-11 shrink-0 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-circuit-600"
+        >
+          {isCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+        </button>
+      </div>
+      <div id={contentId} hidden={isCollapsed} className={isCollapsed ? 'hidden' : 'flex flex-col flex-1 min-h-0'}>
       {/* Top Tab Switcher: Services vs VPC & Boundaries */}
       <div className="flex border-b border-slate-200 bg-white text-xs font-medium">
         <button
@@ -482,6 +501,8 @@ export const ServicePalette: React.FC = () => {
             VPC Subnets &rarr;
           </button>
         )}
+      </div>
+
       </div>
 
       {/* Service Architectural Info & Notes Modal Overlay */}

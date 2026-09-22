@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { EdgeProps, getBezierPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react';
+import { EdgeProps, getBezierPath, getStraightPath, getSmoothStepPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react';
 import { ConnectionData, FlowStatus } from '../../types/index.ts';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 
@@ -93,20 +93,27 @@ export const CustomConnectionEdge = memo(({
     isFailing
   } = edgeData;
 
-  const [defaultEdgePath, defaultLabelX, defaultLabelY] = getBezierPath({
+  // Keep the former orthogonal value compatible with existing diagrams.
+  const isStraight = edgeData.lineStyle !== 'curved';
+  const endpointsAligned = sourceX === targetX || sourceY === targetY;
+  const pathBuilder = isStraight
+    ? (endpointsAligned ? getStraightPath : getSmoothStepPath)
+    : getBezierPath;
+  const [defaultEdgePath, defaultLabelX, defaultLabelY] = pathBuilder({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
-    targetPosition
+    targetPosition,
+    borderRadius: 0
   });
 
   let edgePath = defaultEdgePath;
   let labelX = defaultLabelX;
   let labelY = defaultLabelY;
 
-  if (edgeData.curveOffset) {
+  if (!isStraight && edgeData.curveOffset) {
     const dx = targetX - sourceX;
     const dy = targetY - sourceY;
     const len = Math.hypot(dx, dy) || 1;

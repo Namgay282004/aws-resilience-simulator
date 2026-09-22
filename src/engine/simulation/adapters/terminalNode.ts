@@ -1,3 +1,4 @@
+import { isVpcEndpoint } from '../../network/vpcEndpoint.ts';
 import type { AdapterContext, AdapterSignal } from './types.ts';
 import { CONTINUE, TERMINATE } from './types.ts';
 
@@ -14,6 +15,15 @@ export const terminalNodeAdapter = (ctx: AdapterContext): AdapterSignal => {
 
   if (outgoingEdges.length !== 0) {
     return CONTINUE;
+  }
+
+  if (isVpcEndpoint(node.data)) {
+    trace.fail(400, 'A VPC endpoint needs a connection to its configured destination service; it does not process application requests itself.');
+    trace.pushStep({ sourceNodeId: node.id, targetNodeId: node.id,
+      sourceNodeName: node.data.label, targetNodeName: node.data.label,
+      protocol: 'HTTPS', action: 'Missing endpoint destination', status: 'failed',
+      explanation: 'Connect this endpoint to its configured service.', targetHealth: node.data.health, latencyMs: 0 });
+    return TERMINATE;
   }
 
   const isTerminalDataStore = TERMINAL_DATA_STORE_SERVICE_IDS.includes(node.data.serviceId);

@@ -13,7 +13,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+ARG RELEASE_CHANNEL=stable
+ARG RELEASE_ID
+RUN RELEASE_CHANNEL="$RELEASE_CHANNEL" RELEASE_ID="$RELEASE_ID" npm run build
 
 # --- Stage 2: serve it with nginx ---
 FROM nginx:1.27-alpine

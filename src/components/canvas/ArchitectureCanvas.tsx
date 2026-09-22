@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   BackgroundVariant,
+  ConnectionLineType,
   Panel,
   Node
 } from '@xyflow/react';
@@ -32,6 +33,7 @@ export const ArchitectureCanvas: React.FC = () => {
   const {
     nodes,
     canvasRevision,
+    draftViewport, setDraftViewport,
     onNodesChange,
     edges,
     onEdgesChange,
@@ -196,6 +198,7 @@ export const ArchitectureCanvas: React.FC = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        connectionLineType={ConnectionLineType.Step}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onDragOver={onDragOver}
@@ -204,7 +207,9 @@ export const ArchitectureCanvas: React.FC = () => {
         onNodeContextMenu={onNodeContextMenu}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
-        fitView
+        defaultViewport={draftViewport ?? undefined}
+        onMoveEnd={(_, viewport) => setDraftViewport(viewport)}
+        fitView={!draftViewport}
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.2}
         maxZoom={2.0}

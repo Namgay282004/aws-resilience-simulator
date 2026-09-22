@@ -1,3 +1,4 @@
+import { AppFooter } from './components/layout/AppFooter.tsx';
 import React, { useState } from 'react';
 import { ArchitectureProvider, useArchitecture } from './context/ArchitectureContext.tsx';
 import { AppHeader } from './components/layout/AppHeader.tsx';
@@ -34,7 +35,7 @@ const AppContent: React.FC = () => {
       {appMode === 'failure' && <FailureControls />}
 
       {/* Main Diagram Canvas Workspace */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* Left AWS Service Palette */}
         <ServicePalette />
 
@@ -57,6 +58,8 @@ const AppContent: React.FC = () => {
           <ServiceInspector />
         )}
       </div>
+
+      <AppFooter />
 
       {/* Modals */}
       <AnalysisModal
