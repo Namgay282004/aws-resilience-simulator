@@ -5,6 +5,7 @@ import type { Failure } from '../failure/index.ts';
 import type { LabReference } from '../../data/courseLabs.ts';
 export const DRAFT_KEY = 'aws-architecture-lab.draft.v1';
 export interface DraftState {
+  draftName?: string;
   nodes: Node<ServiceNodeData>[]; edges: Edge<ConnectionData>[];
   scenario: SimulationScenario; simulationResult: SimulationResult | null;
   activeFailures: Failure[]; activeLabReference: LabReference | null;
@@ -40,6 +41,7 @@ export function parseDraft(text: string): DraftState {
       !(s.activeLabReference === null || (object(s.activeLabReference) && Array.isArray(s.activeLabReference.nodes) && Array.isArray(s.activeLabReference.edges)))) {
     throw new Error('Invalid draft data. Current work has not been changed.');
   }
+  if (s.draftName !== undefined && (typeof s.draftName !== 'string' || s.draftName.length > 120)) throw new Error('Invalid draft name.');
   const ids = new Set(s.nodes.map((n: any) => n.id));
   if (ids.size !== s.nodes.length || new Set(s.edges.map((e: any) => e.id)).size !== s.edges.length ||
       s.edges.some((e: any) => !ids.has(e.source) || !ids.has(e.target))) throw new Error('Draft has duplicate IDs or connections to missing nodes.');
@@ -54,4 +56,9 @@ export function migrateDraft(doc: any): any {
   }
   if (doc.version === 1) return { ...doc, version: 2, applicationRelease: null };
   return doc;
+}
+
+export function draftFilename(name: string): string {
+  const safe = name.trim().replace(/\.json$/i, '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/[. ]+$/g, '').slice(0, 120);
+  return `${safe || 'Untitled draft'}.json`;
 }

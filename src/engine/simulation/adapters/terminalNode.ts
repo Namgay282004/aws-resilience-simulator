@@ -26,6 +26,10 @@ export const terminalNodeAdapter = (ctx: AdapterContext): AdapterSignal => {
     return TERMINATE;
   }
 
+  if (ctx.enforceIam && ['internet_gateway', 'nat_gateway'].includes(node.data.serviceId)) {
+    trace.fail(400, 'A gateway forwards traffic and needs a downstream destination; it cannot execute a request itself.');
+    return TERMINATE;
+  }
   const isTerminalDataStore = TERMINAL_DATA_STORE_SERVICE_IDS.includes(node.data.serviceId);
   trace.pushStep({
     sourceNodeId: node.id,

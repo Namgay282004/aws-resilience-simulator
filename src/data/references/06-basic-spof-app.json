@@ -1,0 +1,199 @@
+{
+  "id": "basic-spof-app",
+  "name": "Basic Web App (Single-Instance Anti-Pattern)",
+  "category": "Monolith / Baseline",
+  "difficulty": "Beginner",
+  "description": "A classic three-tier architecture with zero redundancy. Every tier contains a critical single point of failure (SPOF).",
+  "learningOutcome": "Demonstrates what happens when any single component crashes without redundancy or load balancing.",
+  "nodes": [
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 340,
+        "y": 50
+      },
+      "data": {
+        "label": "VPC",
+        "boundaryType": "vpc",
+        "width": 520,
+        "height": 280,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 520,
+        "height": 280
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-public-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 360,
+        "y": 80
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 480,
+        "height": 220
+      },
+      "style": {
+        "width": 480,
+        "height": 220
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "node-user",
+      "type": "serviceNode",
+      "position": {
+        "x": 50,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "User",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-route53",
+      "type": "serviceNode",
+      "position": {
+        "x": 260,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "route53",
+        "label": "Amazon Route 53",
+        "category": "DNS / Edge",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 375,
+        "y": 100
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-ec2",
+      "type": "serviceNode",
+      "position": {
+        "x": 490,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Amazon EC2",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Single instance in AZ-A"
+      }
+    },
+    {
+      "id": "node-rds",
+      "type": "serviceNode",
+      "position": {
+        "x": 740,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Amazon RDS",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Single instance without Multi-AZ"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-user-r53",
+      "source": "node-user",
+      "target": "node-route53",
+      "type": "custom",
+      "data": {
+        "protocol": "DNS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "edge-r53-igw",
+      "source": "node-route53",
+      "target": "node-igw",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "edge-igw-ec2",
+      "source": "node-igw",
+      "target": "node-ec2",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "edge-ec2-rds",
+      "source": "node-ec2",
+      "target": "node-rds",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 5000
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { asgReady } from '../../scaling/asg.ts';
 import { ecsModel } from '../../service/models/ecs.ts';
 import type { AdapterContext, AdapterSignal } from './types.ts';
 import { CONTINUE, TERMINATE } from './types.ts';
@@ -16,6 +17,13 @@ const SERVERLESS_SERVICE_IDS = ['lambda', 'fargate', 'app_runner'];
  */
 export const computeCapacityAdapter = (ctx: AdapterContext): AdapterSignal => {
   const { trace, node, nodes, scenario } = ctx;
+
+  if (node.data.serviceId === 'ec2' && !asgReady(node.data)) {
+    trace.pushStep({ sourceNodeId: node.id, targetNodeId: node.id, sourceNodeName: node.data.label, targetNodeName: node.data.label, protocol: 'HTTP', action: 'EC2 instance not ready', status: 'failed', explanation: 'Instance is launching; advance the ASG simulation clock.', targetHealth: node.data.health, latencyMs: 0 });
+    trace.fail(503, 'EC2 instance is not ready to serve requests.'); return TERMINATE;
+  }
+  // Live UI uses explicit scaling state. Legacy multiplier is compatibility-only.
+  if (node.data.serviceId === 'ec2' && (ctx.enforceIam || ctx.legacyCapacity === false || node.data.customConfig?.asgInstance)) return CONTINUE;
 
   if (node.data.serviceId === 'ecs') {
     const outcome = ecsModel.processRequest({ target: node.data, action: scenario.method });

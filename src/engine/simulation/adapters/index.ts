@@ -1,3 +1,4 @@
+import { managedServicesAdapter } from './managedServices.ts';
 import type { Adapter } from './types.ts';
 import { perimeterInspectionAdapter } from './perimeterInspection.ts';
 import { computeCapacityAdapter } from './computeCapacity.ts';
@@ -23,6 +24,7 @@ export const SIMULATION_PIPELINE: Adapter[] = [
   computeCapacityAdapter,
   ecsDependencyCallsAdapter,
   natGatewayAdapter,
+  managedServicesAdapter,
   terminalNodeAdapter,
   cloudFrontAdapter,
   loadBalancerAdapter,

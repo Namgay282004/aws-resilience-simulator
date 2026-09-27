@@ -1,3 +1,4 @@
+import { asgReady } from '../../scaling/asg.ts';
 import { ecsHasAvailableTasks } from '../../service/models/ecs.ts';
 import type { AdapterContext, AdapterSignal } from './types.ts';
 import { CONTINUE, TERMINATE, advanceTo } from './types.ts';
@@ -27,7 +28,7 @@ export const loadBalancerAdapter = (ctx: AdapterContext): AdapterSignal => {
     selected: false
   }));
 
-  const healthyTargets = targetList.filter(t => t.data.health === 'healthy' && (t.data.serviceId !== 'ecs' || ecsHasAvailableTasks(t.data)));
+  const healthyTargets = targetList.filter(t => t.data.health === 'healthy' && asgReady(t.data) && (t.data.serviceId !== 'ecs' || ecsHasAvailableTasks(t.data)));
 
   if (healthyTargets.length === 0) {
     trace.pushStep({
@@ -78,7 +79,7 @@ export const loadBalancerAdapter = (ctx: AdapterContext): AdapterSignal => {
     // inherent to running an ECS service, not an optional add-on the way an ASG is for EC2;
     // Lambda has no persistent instance to replace at all.
     const failedComputeType = failedTargets[0].data.serviceId;
-    const hasAutoScalingGroup = nodes.some(n => n.data.serviceId === 'ec2_auto_scaling' && n.data.health !== 'failed');
+    const hasAutoScalingGroup = !ctx.enforceIam && ctx.legacyCapacity !== false && nodes.some(n => n.data.serviceId === 'ec2_auto_scaling' && n.data.health !== 'failed');
     if (failedComputeType === 'ec2' && hasAutoScalingGroup) {
       albExplanation += ` The Auto Scaling Group's own health check will independently mark ${failedTargets.map(f => f.data.label).join(', ')} unhealthy, terminate it, and launch a replacement instance to restore full capacity - all without any user-visible impact.`;
     } else if (failedComputeType === 'ecs' || failedComputeType === 'fargate') {

@@ -64,7 +64,7 @@ export const AWS_SERVICES: AWSService[] = [
     teachingNotes: ['Distribute tasks across multiple AZs behind an ALB for fault tolerance.']
   }),
   createService('fargate', 'AWS Fargate', 'Compute', 'Serverless container execution engine.', '#ED7100', 'Runs containers without managing underlying EC2 server clusters.', {
-    inputs: ['HTTP', 'Event'], outputs: ['SQL', 'HTTPS', 'Object access'], dependencies: ['ecr', 's3']
+    inputs: ['HTTP', 'HTTPS', 'Event'], outputs: ['SQL', 'HTTPS', 'Object access'], dependencies: ['ecr', 's3']
   }),
   createService('eks', 'Amazon EKS', 'Compute', 'Managed Kubernetes cluster service.', '#ED7100', 'Runs standard upstream Kubernetes across multiple availability zones.', {
     inputs: ['HTTPS', 'gRPC'], outputs: ['SQL', 'HTTPS', 'Object access']
@@ -177,7 +177,10 @@ export const AWS_SERVICES: AWSService[] = [
   createService('cloud_wan', 'AWS Cloud WAN', 'Networking & Content Delivery', 'Wide Area Network management service.', '#8C4FFF', 'Builds and monitors unified global networks across AWS and branch offices.', {}),
   createService('global_accelerator', 'AWS Global Accelerator', 'Networking & Content Delivery', 'Anycast IP internet performance accelerator.', '#8C4FFF', 'Improves application availability and latency by routing over AWS global fiber backbone.', {}),
   createService('internet_gateway', 'Internet Gateway (IGW)', 'Networking & Content Delivery', 'VPC public internet ingress/egress gateway.', '#8C4FFF', 'Enables communication between public resources in your VPC and the Internet.', {}),
-  createService('nat_gateway', 'NAT Gateway', 'Networking & Content Delivery', 'Outbound internet connectivity for private subnets.', '#8C4FFF', 'Allows private instances to patch and call external APIs without allowing inbound access.', {}),
+  createService('nat_gateway', 'NAT Gateway', 'Networking & Content Delivery', 'Outbound internet connectivity for private subnets.', '#8C4FFF', 'Allows private instances to patch and call external APIs without allowing inbound access.', {
+    // A NAT Gateway is a protocol-agnostic Layer 3/4 passthrough for outbound traffic, not an application-layer endpoint.
+    inputs: ['TCP', 'HTTPS', 'HTTP']
+  }),
   createService('s3_gateway_endpoint', 'S3 Gateway Endpoint', 'Networking & Content Delivery', 'Private VPC gateway route to S3 without NAT or IGW.', '#8C4FFF', 'Allows instances in private subnets to read/write Amazon S3 buckets over AWS private network without traversing internet.', {}),
   createService('route_tables', 'Route Tables', 'Networking & Content Delivery', 'Subnet packet routing rules.', '#8C4FFF', 'Contains a set of rules determining where network traffic from your subnet is directed.', {}),
   createService('network_firewall', 'AWS Network Firewall', 'Networking & Content Delivery', 'Stateful network inspection firewall.', '#8C4FFF', 'Provides stateful inspection, intrusion prevention, and web filtering for VPCs.', {}),
@@ -186,7 +189,9 @@ export const AWS_SERVICES: AWSService[] = [
   createService('vpc_peering', 'VPC Peering', 'Networking & Content Delivery', 'Direct non-transitive VPC network connection.', '#8C4FFF', 'Routes traffic between two VPCs using private IPv4/IPv6 addresses.', {}),
   createService('verified_access', 'AWS Verified Access', 'Networking & Content Delivery', 'Zero-Trust application access without VPN.', '#8C4FFF', 'Provides secure corporate application access using Zero Trust principles.', {}),
   createService('app_mesh', 'AWS App Mesh', 'Networking & Content Delivery', 'Service mesh for microservice observability.', '#8C4FFF', 'Provides application-level networking for microservices using the Envoy proxy.', {}),
-  createService('cloud_map', 'AWS Cloud Map', 'Networking & Content Delivery', 'Service discovery for cloud resources.', '#8C4FFF', 'Maintains a live registry of application service locations (DNS/SRV records) so services can discover each other by name instead of hardcoded endpoints.', {}),
+  createService('cloud_map', 'AWS Cloud Map', 'Networking & Content Delivery', 'Service discovery for cloud resources.', '#8C4FFF', 'Maintains a live registry of application service locations (DNS/SRV records) so services can discover each other by name instead of hardcoded endpoints.', {
+    inputs: ['DNS', 'HTTPS', 'HTTP'] // DNS/SRV record lookups, plus its own HTTP API for service registration/discovery
+  }),
 
   // ==========================================
   // 6. SECURITY, IDENTITY & COMPLIANCE (26 services)
@@ -312,7 +317,10 @@ export const AWS_SERVICES: AWSService[] = [
   // ==========================================
   createService('cloudwatch', 'Amazon CloudWatch', 'Management & Governance', 'Telemetry metrics, logs, and alarms monitoring.', '#E7157B', 'Collects metrics, logs, and triggers automated remediation alarms.', {}),
   createService('cloudtrail', 'AWS CloudTrail', 'Management & Governance', 'API call audit history and governance.', '#E7157B', 'Records every API request and user activity across AWS accounts for compliance audits.', {}),
-  createService('cloudformation', 'AWS CloudFormation', 'Management & Governance', 'Infrastructure as Code (IaC) declarative templates.', '#E7157B', 'Provisions and models cloud infrastructure stacks consistently using code templates.', {}),
+  createService('cloudformation', 'AWS CloudFormation', 'Management & Governance', 'Infrastructure as Code (IaC) declarative templates.', '#E7157B', 'Provisions and models cloud infrastructure stacks consistently using code templates.', {
+    // console/CLI/SDK API calls; CodePipeline/EventBridge-triggered stack operations; template bodies read from an S3-hosted TemplateURL
+    inputs: ['HTTPS', 'HTTP', 'Event', 'Object access']
+  }),
   createService('config', 'AWS Config', 'Management & Governance', 'Resource configuration tracking and compliance.', '#E7157B', 'Assesses, audits, and evaluates configurations of cloud resources against desired rules.', {}),
   createService('systems_manager', 'AWS Systems Manager', 'Management & Governance', 'Operations hub and node patch manager.', '#E7157B', 'Gives operational control over cloud and on-premises computing infrastructure.', {}),
   createService('organizations', 'AWS Organizations', 'Management & Governance', 'Multi-account management and governance.', '#E7157B', 'Centrally consolidates billing and enforces Service Control Policies (SCPs) across accounts.', {}),

@@ -1,5 +1,14 @@
 # CLAUDE.md --- AWS Architecture Lab
 
+> **Multi-agent handoff:** This project gets worked on by different AI
+> agents/sessions (Claude, ChatGPT, etc.) at different times. Before
+> starting any work, read `docs/HANDOFF.md` for the current live state
+> (in-flight work, gaps, next steps). Before ending a session --- and
+> always before leaving uncommitted work --- update it. `docs/HANDOFF.md`
+> is a snapshot, not a log: overwrite stale sections, don't append
+> forever. This CLAUDE.md is the stable objective/intent; HANDOFF.md is
+> what changes week to week.
+
 ## 1. Project identity
 
 **Project name:** AWS Architecture Lab\

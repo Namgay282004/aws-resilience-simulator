@@ -1,0 +1,297 @@
+{
+  "id": "nacl-vs-security-group",
+  "name": "Network ACL vs Security Group in Action",
+  "category": "Networking & VPC Design",
+  "difficulty": "Intermediate",
+  "description": "A request travels User -> ALB -> App tier -> Database tier, crossing a Security Group at each tier and a Network ACL on the database subnet. Run the scenario as-is: it is deliberately wired with one protocol mismatch so you see both mechanisms correctly ALLOW traffic earlier in the trace, and then watch the database tier's Security Group actively BLOCK it - while its Network ACL, evaluated first, lets the very same packet through.",
+  "learningOutcome": "Contrasts the two firewall layers AWS gives every VPC resource: a Network ACL is stateless, attaches to the whole subnet, and only needs an explicit DENY rule to block traffic (everything else passes) - here it only denies raw TCP, so it waves the mismatched request through. A Security Group is stateful, attaches to the individual instance, and is allow-list only - the database's Security Group permits just SQL, so an HTTPS request is rejected even though the NACL had no objection. Together they demonstrate defense in depth: either layer alone can stop bad traffic, and a mistake in one is not necessarily caught by the other.",
+  "nodes": [
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 60,
+        "y": 40
+      },
+      "data": {
+        "label": "VPC",
+        "boundaryType": "vpc",
+        "width": 760,
+        "height": 440,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 760,
+        "height": 440
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-public-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 90,
+        "y": 70
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 180,
+        "height": 140
+      },
+      "style": {
+        "width": 180,
+        "height": 140
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-app-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 320,
+        "y": 70
+      },
+      "data": {
+        "label": "App subnet",
+        "boundaryType": "private_subnet",
+        "width": 220,
+        "height": 160
+      },
+      "style": {
+        "width": 220,
+        "height": 160
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-app-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 340,
+        "y": 100
+      },
+      "data": {
+        "label": "App Tier Security Group",
+        "boundaryType": "security_group",
+        "width": 180,
+        "height": 100,
+        "allowedProtocols": [
+          "HTTP"
+        ]
+      },
+      "style": {
+        "width": 180,
+        "height": 100
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 1
+    },
+    {
+      "id": "box-db-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 320,
+        "y": 270
+      },
+      "data": {
+        "label": "Database subnet",
+        "boundaryType": "private_subnet",
+        "width": 220,
+        "height": 160,
+        "naclDenyInbound": [
+          "TCP"
+        ]
+      },
+      "style": {
+        "width": 220,
+        "height": 160
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-db-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 340,
+        "y": 300
+      },
+      "data": {
+        "label": "Database Security Group",
+        "boundaryType": "security_group",
+        "width": 180,
+        "height": 100,
+        "allowedProtocols": [
+          "SQL"
+        ]
+      },
+      "style": {
+        "width": 180,
+        "height": 100
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 1
+    },
+    {
+      "id": "node-user",
+      "type": "serviceNode",
+      "position": {
+        "x": -180,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "User",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 110,
+        "y": 80
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 110,
+        "y": 150
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "Application Load Balancer",
+        "category": "Load Balancing",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-ec2-app",
+      "type": "serviceNode",
+      "position": {
+        "x": 380,
+        "y": 130
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "App Server",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "box-app-sg"
+        ]
+      }
+    },
+    {
+      "id": "node-rds",
+      "type": "serviceNode",
+      "position": {
+        "x": 380,
+        "y": 330
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Amazon RDS",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "box-db-sg"
+        ],
+        "notes": "Deliberately queried over HTTPS instead of SQL, to demonstrate the Security Group rejecting a protocol mismatch that the Network ACL alone would not catch."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-user-igw",
+      "source": "node-user",
+      "target": "node-igw",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-igw-alb",
+      "source": "node-igw",
+      "target": "node-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-alb-ec2-app",
+      "source": "node-alb",
+      "target": "node-ec2-app",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-ec2-app-rds",
+      "source": "node-ec2-app",
+      "target": "node-rds",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    }
+  ]
+}

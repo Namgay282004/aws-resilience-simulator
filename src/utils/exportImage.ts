@@ -27,6 +27,8 @@ export async function downloadCanvasAsPng(
   const viewport = getViewportForBounds(bounds, IMAGE_WIDTH, IMAGE_HEIGHT, MIN_ZOOM, MAX_ZOOM, PADDING);
 
   const dataUrl = await toPng(viewportEl, {
+    // Omit editing handles from the cloned export without changing the live canvas.
+    filter: element => !element.classList?.contains('react-flow__handle'),
     backgroundColor: '#ffffff',
     width: IMAGE_WIDTH,
     height: IMAGE_HEIGHT,

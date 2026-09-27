@@ -371,10 +371,14 @@ test('ECS explorer is opt-in, persists component edits, groups services, and clo
     assert.equal(serviceBoundary.querySelectorAll('[aria-label^="Task snapshot "]').length, 6);
     assert.match(serviceBoundary.textContent!, /94 more tasks/);
 
-    await h.act(() => button('EC2 · container instances').click());
+    const compute = cluster.querySelector('[aria-label="Cluster compute capacity"]')!;
+    assert.ok(compute);
+    assert.equal(serviceBoundary.contains(compute), false, 'compute must not be owned by a service');
+    assert.equal(compute.querySelector('[aria-label^="Service boundary:"]'), null);
+    await h.act(() => button('compute reference').click());
     const select = document.querySelector('[role="dialog"] select') as HTMLSelectElement;
     await h.act(() => { select.value = 'FARGATE'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
-    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Fargate · AWS-managed compute/);
+    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Fargate · no customer-managed EC2 hosts/);
     assert.doesNotMatch(document.querySelector('[aria-label="ECS component details"]')!.textContent!, /EC2 instance type/);
     assert.equal(h.api().nodes.find(n => n.id === ecs.id)!.data.customConfig!.ecs.launchType, 'FARGATE');
     await h.act(() => h.api().addServiceNode('ecs', { x: 200, y: 0 }));
@@ -390,7 +394,118 @@ test('ECS explorer is opt-in, persists component edits, groups services, and clo
     await h.act(() => modal.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     assert.equal(document.querySelector('[role="dialog"]'), null);
     await h.act(() => button('More information').click());
-    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Fargate · AWS-managed compute/);
+    assert.match(document.querySelector('[role="dialog"]')!.textContent!, /Fargate · no customer-managed EC2 hosts/);
+  } finally { await h.unmount(); }
+});
+
+test('ECS connectivity map: shows an ALB fanning out to multiple cluster services, a downstream dependency, and hides intra-cluster edges', async () => {
+  const h = await mount(true);
+  try {
+    const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
+
+    await h.act(() => h.api().addServiceNode('alb', { x: 0, y: 0 }));
+    await h.act(() => h.api().addServiceNode('ecs', { x: 200, y: 0 }));
+    await h.act(() => h.api().addServiceNode('ecs', { x: 200, y: 150 }));
+    await h.act(() => h.api().addServiceNode('rds', { x: 400, y: 0 }));
+
+    const alb = h.api().nodes.find(n => n.data.serviceId === 'alb')!;
+    const [ecsA, ecsB] = h.api().nodes.filter(n => n.data.serviceId === 'ecs');
+    const rds = h.api().nodes.find(n => n.data.serviceId === 'rds')!;
+
+    await h.act(() => h.api().updateNodeData(ecsA.id, { customConfig: { ecsWorkspace: { clusterName: 'shared', serviceName: 'API service' } } }));
+    await h.act(() => h.api().updateNodeData(ecsB.id, { customConfig: { ecsWorkspace: { clusterName: 'shared', serviceName: 'Worker service' } } }));
+
+    // ALB fans out to both cluster services; API service also depends on RDS; the two cluster
+    // services are also connected to each other (an intra-cluster edge that should NOT appear as
+    // an upstream/downstream lane, only as a count).
+    await h.act(() => h.api().onConnect({ source: alb.id, target: ecsA.id, sourceHandle: null, targetHandle: null }));
+    await h.act(() => h.api().onConnect({ source: alb.id, target: ecsB.id, sourceHandle: null, targetHandle: null }));
+    await h.act(() => h.api().onConnect({ source: ecsA.id, target: rds.id, sourceHandle: null, targetHandle: null }));
+    await h.act(() => h.api().onConnect({ source: ecsA.id, target: ecsB.id, sourceHandle: null, targetHandle: null }));
+
+    await h.act(() => h.api().setSelectedNodeId(ecsA.id));
+    await h.act(() => button('More information').click());
+
+    // Scoped specifically to the connectivity map (now in the right-hand detail sidebar), not the
+    // topology diagram in the main column - both render a "Worker service" element, so a
+    // document-wide text/button search would be ambiguous.
+    const map = document.querySelector('[aria-label="ECS cluster connectivity map"]')!;
+    assert.match(map.textContent!, /Cluster: shared/);
+    assert.ok(map.textContent!.includes(alb.data.label), 'ALB must appear as an inbound connection');
+    assert.ok(map.textContent!.includes(rds.data.label), 'RDS must appear as an outbound connection');
+
+    // A cluster is a logical grouping of services - the ALB and RDS are separate AWS resources,
+    // not part of the cluster, so they must render OUTSIDE the cluster boundary box, never nested
+    // inside it.
+    const boundary = map.querySelector('[aria-label="Cluster boundary"]')!;
+    assert.ok(!boundary.textContent!.includes(alb.data.label), 'ALB must not be nested inside the cluster boundary');
+    assert.ok(!boundary.textContent!.includes(rds.data.label), 'RDS must not be nested inside the cluster boundary');
+
+    // ALB fans out to BOTH services, but is a single real resource - it must be drawn once, with a
+    // caption naming every service it reaches, not duplicated once per service.
+    const albMentions = map.textContent!.split(alb.data.label).length - 1;
+    assert.equal(albMentions, 1, `ALB should be drawn exactly once (deduplicated), got ${albMentions} mentions`);
+    assert.match(map.textContent!, /API service, Worker service/, 'the ALB caption must name both services it fans out to');
+
+    // Restored visual language: ALB shown as its own icon+label box, connected to the ECS service
+    // box by a directional arrow - not just a text chip. Only the two boundary-crossing arrows
+    // (outside the cluster boundary box) are counted here; the small in-box "routed to these
+    // tasks"/"these tasks call out" markers are checked separately below.
+    const albBox = [...map.querySelectorAll('div')].find(d => d.textContent === alb.data.label && d.querySelector('svg'));
+    assert.ok(albBox, 'ALB must render as its own icon+label box');
+    const crossingArrows = [...map.querySelectorAll('[aria-hidden="true"] svg.lucide-arrow-down')].filter(el => !boundary.contains(el));
+    assert.equal(crossingArrows.length, 2, `expected one boundary-crossing arrow for the deduplicated ALB box + one for RDS, got ${crossingArrows.length}`);
+
+    // A line pointing at "the task" specifically isn't possible without fabricating which task -
+    // the model has no per-task identity - so instead the task-pool row itself gets a marker: API
+    // service is both routed to (by the ALB) and calls out (to RDS); Worker service only receives.
+    assert.match(map.textContent!, /routed to these tasks/);
+    assert.match(map.textContent!, /these tasks call out/);
+    const routedMarkers = map.textContent!.match(/routed to these tasks/g) ?? [];
+    assert.equal(routedMarkers.length, 2, 'both API service and Worker service are targeted by the ALB');
+    const callsOutMarkers = map.textContent!.match(/these tasks call out/g) ?? [];
+    assert.equal(callsOutMarkers.length, 1, 'only API service calls out (to RDS)');
+
+    // The intra-cluster ECS-to-ECS edge must be reported as a count, not listed as an in/out chip.
+    assert.match(map.textContent!, /1 connection.*inside this cluster/);
+
+    // One task square per running task, colored by that service's health.
+    const mapButton = (text: string) => [...map.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
+    const apiCard = mapButton('API service').closest('div')!;
+    assert.equal(apiCard.querySelectorAll('[role="img"] > span').length, 1, 'API service has 1 running task by default');
+    assert.ok(apiCard.querySelector('[role="img"] > span')!.className.includes('bg-emerald-600'), 'a healthy task square must be emerald');
+
+    // Bumping desired/running task count must be reflected immediately, with a matching color
+    // change when health changes too - this is the live-update behavior that was requested.
+    await h.act(() => h.api().updateNodeData(ecsA.id, {
+      health: 'degraded',
+      customConfig: { ecsWorkspace: { clusterName: 'shared', serviceName: 'API service' }, ecs: { runningCount: 3, desiredCount: 5 } }
+    }));
+    const updatedMap = document.querySelector('[aria-label="ECS cluster connectivity map"]')!;
+    const updatedApiCard = [...updatedMap.querySelectorAll('button')].find(b => b.textContent?.includes('API service'))!.closest('div')!;
+    const runningSquares = [...updatedApiCard.querySelectorAll('[role="img"] > span')].filter(el => el.className.includes('bg-'));
+    const gapSquares = updatedApiCard.querySelectorAll('[role="img"] > span.border-dashed');
+    assert.equal(runningSquares.length, 3, 'must show exactly 3 running-task squares after the update');
+    assert.equal(gapSquares.length, 2, 'must show exactly 2 desired-but-not-running squares (5 desired - 3 running)');
+    assert.ok(runningSquares.every(el => el.className.includes('bg-amber-500')), 'running task squares must turn amber to match the degraded health update');
+
+    // Clicking THIS service's name (not the topology's own service-boundary button below it)
+    // jumps to that service's Network section.
+    await h.act(() => mapButton('Worker service').click());
+    assert.match(document.querySelector('[aria-label="ECS component details"]')!.textContent!, /Networking & connections/);
+  } finally { await h.unmount(); }
+});
+
+test('ECS connectivity map: shows an empty state when the cluster has no external connections', async () => {
+  const h = await mount(true);
+  try {
+    const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
+    await h.act(() => h.api().addServiceNode('ecs', { x: 0, y: 0 }));
+    const ecs = h.api().nodes.filter(n => n.data.serviceId === 'ecs').at(-1)!;
+    await h.act(() => h.api().setSelectedNodeId(ecs.id));
+    await h.act(() => button('More information').click());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    assert.match(dialog.textContent!, /No connections into or out of this cluster yet/);
   } finally { await h.unmount(); }
 });
 
@@ -490,6 +605,7 @@ test('Draft roundtrip restores workspace, scenario, failures, results and viewpo
   try {
     await h.act(() => h.api().loadTemplate('highly-available-multiaz'));
     await h.act(() => {
+      h.api().setDraftName('My networking lab');
       h.api().setScenario(s => ({ ...s, path: '/saved-draft' }));
       h.api().setDraftViewport({ x: 42, y: -30, zoom: 0.8 });
       h.api().setPlaybackSpeed(2);
@@ -501,6 +617,7 @@ test('Draft roundtrip restores workspace, scenario, failures, results and viewpo
     const snapshot = JSON.parse(saved).state;
     await h.act(() => h.api().clearCanvas());
     await h.act(() => h.api().importDraft(saved));
+    assert.equal(h.api().draftName, 'My networking lab');
     assert.deepStrictEqual(h.api().scenario, snapshot.scenario);
     assert.deepStrictEqual(h.api().activeFailures, snapshot.activeFailures);
     assert.deepStrictEqual(h.api().simulationResult, snapshot.simulationResult);
@@ -546,4 +663,199 @@ test('Release indicator offers same-channel update and restores a tab recovery d
     (globalThis as any).sessionStorage = previousStorage;
     window.confirm = oldConfirm;
   }
+});
+
+test('Enabling NACL on separate subnets creates independent rules and preserves them in drafts', async () => {
+  const h = await mount(true);
+  try {
+    const subnets = h.api().nodes.filter(n => ['public_subnet', 'private_subnet'].includes(String(n.data.boundaryType)));
+    assert.ok(subnets.length >= 2);
+    for (const subnet of subnets.slice(0, 2)) {
+      await h.act(() => h.api().setSelectedNodeId(subnet.id));
+      const enable = Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Enable NACL rule set');
+      assert.ok(enable);
+      await h.act(() => enable!.click());
+      assert.ok(h.api().nodes.find(n => n.id === subnet.id)?.data.customNacl);
+    }
+    const [a, b] = subnets.slice(0, 2).map(n => h.api().nodes.find(node => node.id === n.id)!);
+    assert.notStrictEqual(a.data.customNacl, b.data.customNacl);
+    const saved = h.api().exportDraft();
+    await h.act(() => h.api().importDraft(saved));
+    assert.deepStrictEqual(h.api().nodes.find(n => n.id === a.id)?.data.customNacl, a.data.customNacl);
+  } finally { await h.unmount(); }
+});
+
+test('hasMissingReturnNacl (drives the Problem 3.1 canvas banner) only reflects the actual missing-return condition, not every custom NACL', async () => {
+  // ArchitectureCanvas.tsx (not mounted by this harness) shows its "addressing problem 3.1" banner
+  // purely off `hasMissingReturnNacl` - asserting on that context value here is equivalent to
+  // asserting on the banner's visibility, without needing a real ReactFlow render in jsdom.
+  const h = await mount(true);
+  try {
+    assert.strictEqual(h.api().hasMissingReturnNacl, false);
+
+    const subnet = h.api().nodes.find(n => ['public_subnet', 'private_subnet'].includes(String(n.data.boundaryType)))!;
+    await h.act(() => h.api().setSelectedNodeId(subnet.id));
+    const enable = Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Enable NACL rule set');
+    assert.ok(enable);
+    await h.act(() => enable!.click());
+    assert.ok(h.api().nodes.find(n => n.id === subnet.id)?.data.customNacl, 'preset should be applied');
+    assert.strictEqual(h.api().hasMissingReturnNacl, false, 'enabling the NACL preset must not trigger the Problem 3.1 banner');
+
+    await h.act(() => h.api().loadTemplate('nacl-custom-stateless-timeout'));
+    assert.strictEqual(h.api().hasMissingReturnNacl, true, 'the actual Problem 3.1 reference diagram must still trigger its banner');
+  } finally { await h.unmount(); }
+});
+
+test('Live SNS fanout persists queue runtime through draft restore', async () => {
+  const h = await mount();
+  try {
+    let topicId = '', queueId = '';
+    await h.act(() => { h.api().addServiceNode('sns'); h.api().addServiceNode('sqs'); });
+    topicId = h.api().nodes.find(n => n.data.serviceId === 'sns')!.id;
+    queueId = h.api().nodes.find(n => n.data.serviceId === 'sqs')!.id;
+    await h.act(() => {
+      h.api().updateNodeData(queueId, { customConfig: { allowedTopicIds: [topicId] } });
+      h.api().setEdges([{ id: 'subscription', source: topicId, target: queueId, data: { protocol: 'Message', interactionType: 'asynchronous', isCriticalDependency: false, timeoutMs: 1000 } }]);
+      h.api().setScenario(s => ({ ...s, startNodeId: topicId }));
+    });
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().nodes.find(n => n.id === queueId)!.data.customConfig?.serviceRuntime.messages.length, 1);
+    const saved = h.api().exportDraft();
+    await h.act(() => h.api().clearCanvas());
+    await h.act(() => h.api().importDraft(saved));
+    assert.equal(h.api().nodes.find(n => n.id === queueId)!.data.customConfig?.serviceRuntime.messages.length, 1);
+  } finally { await h.unmount(); }
+});
+
+test('Connection drawing selects legal S3 interaction and rejects invalid inspector edits', async () => {
+  const h = await mount();
+  const oldAlert = window.alert;
+  const alerts: string[] = []; window.alert = message => { alerts.push(String(message)); };
+  try {
+    await h.act(() => { h.api().addServiceNode('user'); h.api().addServiceNode('s3'); });
+    const source = h.api().nodes.find(n => n.data.serviceId === 'user')!.id;
+    const target = h.api().nodes.find(n => n.data.serviceId === 's3')!.id;
+    await h.act(() => h.api().onConnect({ source, target, sourceHandle: null, targetHandle: null }));
+    const edge = h.api().edges.find(e => e.source === source && e.target === target)!;
+    assert.ok(edge);
+    await h.act(() => h.api().updateEdgeData(edge.id, { protocol: 'SQL' }));
+    assert.notEqual(h.api().edges.find(e => e.id === edge.id)!.data?.protocol, 'SQL');
+    assert.ok(alerts.some(message => message.includes('SQL')));
+  } finally { window.alert = oldAlert; await h.unmount(); }
+});
+
+test('ASG controls create visible instance state, persist it, and reset without removing baseline members', async () => {
+  const { ASG_REFERENCE } = await import('../../src/data/asgReference.ts');
+  const h = await mount(true);
+  try {
+    const manualNodes = structuredClone(ASG_REFERENCE.nodes); manualNodes.find(n => n.id === 'asg-group')!.data.customConfig.asg.metricSource = 'manual';
+    await h.act(() => { h.api().setNodes(manualNodes as any); h.api().setEdges(structuredClone(ASG_REFERENCE.edges) as any); h.api().setSelectedNodeId('asg-group'); });
+    await h.act(() => [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Config')!.click());
+    const panel = () => document.querySelector('[aria-label="ASG scaling simulation"]')!;
+    assert.ok(panel());
+    const button = (text: string) => [...panel().querySelectorAll('button')].find(b => b.textContent === text)!;
+    await h.act(() => button('Advance one period').click());
+    assert.match(panel().textContent!, /INSUFFICIENT_DATA/);
+    await h.act(() => button('Advance one period').click());
+    const instance = h.api().nodes.find(n => n.data.customConfig?.asgInstance?.generated)!;
+    assert.ok(instance); assert.equal(instance.data.customConfig!.asgInstance.state, 'Launching');
+    await h.act(() => button('Advance one period').click());
+    assert.equal(h.api().nodes.find(n => n.id === instance.id)!.data.customConfig!.asgInstance.state, 'InService');
+    await h.act(() => h.api().setSelectedNodeId('asg-alarm'));
+    assert.ok(panel()); assert.match(panel().textContent!, /Desired: 3/);
+    await h.act(() => button('Reset scaling').click());
+    assert.equal(h.api().nodes.some(n => n.id === instance.id), false);
+    assert.ok(h.api().nodes.some(n => n.id === 'asg-web-1'));
+    await h.act(() => button('Advance one period').click());
+    await h.act(() => button('Advance one period').click());
+    await h.act(() => h.api().resetSimulation());
+    assert.equal(h.api().nodes.some(n => n.data.customConfig?.asgInstance?.generated), false);
+    assert.ok(h.api().edges.every(e => h.api().nodes.some(n => n.id === e.source) && h.api().nodes.some(n => n.id === e.target)));
+  } finally { await h.unmount(); }
+});
+
+test('Send Request scales on canvas with no inspector; CloudWatch exposes policy selection', async () => {
+  const { ASG_REFERENCE } = await import('../../src/data/asgReference.ts');
+  const h = await mount(true);
+  try {
+    await h.act(() => { h.api().setNodes(structuredClone(ASG_REFERENCE.nodes) as any); h.api().setEdges(structuredClone(ASG_REFERENCE.edges) as any); h.api().setScenario(prev => ({ ...prev, startNodeId: 'asg-alb', trafficLevel: 'normal', method: 'GET', path: '/' })); h.api().setSelectedNodeId(null); });
+    await h.act(() => h.api().runScenario());
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().nodes.filter(n => n.data.customConfig?.asgInstance?.generated).length, 1);
+    assert.match(h.api().simulationResult!.summary, /synthetic 120 requests/);
+    await h.act(() => h.api().setSelectedNodeId('asg-alarm'));
+    await h.act(() => [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Config')!.click());
+    assert.ok(document.querySelector('[aria-label="Scaling policy type"]'));
+    assert.equal([...document.querySelectorAll('button')].some(b => b.textContent === 'Play scaling'), false);
+    await h.act(() => [...document.querySelectorAll('button')].find(b => b.textContent === 'Reset scaling')!.click());
+    const policy = document.querySelector('[aria-label="Scaling policy type"]') as HTMLSelectElement;
+    await h.act(() => { policy.value = 'target'; policy.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+    assert.equal(h.api().nodes.find(n => n.id === 'asg-group')!.data.customConfig!.asg.policyType, 'target');
+  } finally { await h.unmount(); }
+});
+
+test('Drawing scaling links selects management contracts without allowing ASG application traffic', async () => {
+  const h = await mount(); const previousAlert = window.alert; const alerts: string[] = [];
+  window.alert = message => { alerts.push(String(message)); };
+  try {
+    await h.act(() => { for (const id of ['ec2_auto_scaling', 'ec2', 'cloudwatch', 'alb']) h.api().addServiceNode(id); });
+    const find = (service: string) => h.api().nodes.filter(n => n.data.serviceId === service).at(-1)!;
+    for (const [source, target] of [['ec2_auto_scaling', 'ec2'], ['cloudwatch', 'ec2_auto_scaling'], ['alb', 'cloudwatch']]) {
+      await h.act(() => h.api().onConnect({ source: find(source).id, target: find(target).id, sourceHandle: null, targetHandle: null }));
+      const edge = h.api().edges.find(e => e.source === find(source).id && e.target === find(target).id)!;
+      assert.ok(edge); assert.equal(edge.data?.relationship, 'manages'); assert.equal(edge.data?.protocol, 'Event'); assert.equal(edge.data?.isCriticalDependency, false);
+    }
+    assert.deepEqual(alerts, []);
+  } finally { window.alert = previousAlert; await h.unmount(); }
+});
+
+test('Export saves a complete named draft through the file picker and retains upload controls', async () => {
+  const { ExportModal } = await import('../../src/components/export/ExportModal.tsx');
+  const { parseDraft } = await import('../../src/engine/persistence/draft.ts');
+  const previous = (window as any).showSaveFilePicker;
+  let suggested = '', written = '', closed = false;
+  (window as any).showSaveFilePicker = async (options: any) => { suggested = options.suggestedName; return { name: suggested, createWritable: async () => ({ write: async (value: string) => { written = value; }, close: async () => { closed = true; } }) }; };
+  const root = createRoot(document.getElementById('root')!);
+  const apiRef: { current: Api | null } = { current: null };
+  try {
+    await act(async () => root.render(React.createElement(ArchitectureProvider, null, React.createElement(Harness, { apiRef }), React.createElement(ExportModal, { isOpen: true, onClose: () => {} }))));
+    await act(async () => apiRef.current!.setDraftName('Networking Lab'));
+    const buttons = () => [...document.querySelectorAll('button')];
+    await act(async () => buttons().find(b => b.textContent === 'Download JSON')!.click());
+    assert.equal(suggested, 'Networking Lab.json'); assert.equal(closed, true);
+    const saved = parseDraft(written);
+    assert.equal(saved.draftName, 'Networking Lab');
+    assert.deepEqual(saved.nodes, JSON.parse(JSON.stringify(apiRef.current!.nodes)));
+    assert.ok(document.querySelector('[aria-label="Upload draft JSON file"]'));
+    (window as any).showSaveFilePicker = async () => { throw new dom.window.DOMException('Cancelled', 'AbortError'); };
+    await act(async () => buttons().find(b => b.textContent === 'Download JSON')!.click());
+    assert.equal(buttons().find(b => b.textContent === 'Download JSON')!.disabled, false);
+  } finally { await act(async () => root.unmount()); (window as any).showSaveFilePicker = previous; }
+});
+
+test('Reference library exports source-compatible JSON and loads an independent copy', async () => {
+  const { ReferenceLibrary } = await import('../../src/components/references/ReferenceLibrary.tsx');
+  const { parseReference } = await import('../../src/engine/persistence/references.ts');
+  const originalPicker = (window as any).showSaveFilePicker;
+  const originalStorage = (globalThis as any).localStorage;
+  const originalConfirm = window.confirm;
+  const store = new Map<string, string>();
+  (globalThis as any).localStorage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => store.set(key, value) };
+  window.confirm = () => true;
+  let saved = '';
+  (window as any).showSaveFilePicker = async () => ({ createWritable: async () => ({ write: async (text: string) => { saved = text; }, close: async () => {} }) });
+  const root = createRoot(document.getElementById('root')!); const apiRef: { current: Api | null } = { current: null };
+  try {
+    await act(async () => root.render(React.createElement(ArchitectureProvider, null, React.createElement(Harness, { apiRef }), React.createElement(ReferenceLibrary))));
+    const name = [...document.querySelectorAll('label')].find(l => l.textContent?.includes('Reference name'))!.querySelector('input')!;
+    await act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(name, 'My classroom reference'); name.dispatchEvent(new dom.window.Event('input', { bubbles: true })); });
+    await act(async () => [...document.querySelectorAll('button')].find(b => b.textContent === 'Save as reference')!.click());
+    const reference = parseReference(saved);
+    assert.equal(reference.name, 'My classroom reference');
+    assert.deepEqual(reference.nodes, JSON.parse(JSON.stringify(apiRef.current!.nodes)));
+    await act(async () => apiRef.current!.loadTemplate(reference.id, reference));
+    assert.deepEqual(apiRef.current!.scenario, reference.scenario);
+    assert.notEqual(apiRef.current!.nodes, reference.nodes);
+    assert.ok(document.querySelector('[aria-label="Import reference JSON"]'));
+  } finally { await act(async () => root.unmount()); (window as any).showSaveFilePicker = originalPicker; (globalThis as any).localStorage = originalStorage; window.confirm = originalConfirm; }
 });

@@ -11,6 +11,7 @@ import type { ServiceNodeData, ConnectionData, SimulationScenario, SimulationSte
  * stays in the orchestrator, not in any adapter).
  */
 export class SimulationTrace {
+  readonly serviceStates: Record<string, import('../../services/operations.ts').Runtime> = {};
   readonly steps: SimulationStep[] = [];
   private stepNumber = 1;
   currentTimestamp = 0;
@@ -73,6 +74,8 @@ export interface AdapterContext {
   node: Node<ServiceNodeData>;
   /** This hop's outgoing edges (excluding response/return signal lines). */
   outgoingEdges: Edge<ConnectionData>[];
+  allEdges: Edge<ConnectionData>[];
+  orderedConnections?: boolean;
   /** Child API calls made by the current service before its forwarding path continues. */
   dependencyEdges: Edge<ConnectionData>[];
   /** Downstream service nodes reachable from `node` via `outgoingEdges` (boundary containers
@@ -84,6 +87,7 @@ export interface AdapterContext {
   visited: Set<string>;
   scenario: SimulationScenario;
   enforceIam?: boolean;
+  legacyCapacity?: boolean;
   /** Runs the shared NACL-then-Security-Group check for one hop; pushes a step per evaluated
    *  layer and returns true if the caller should stop traversal (a layer blocked). */
   pushFirewallBlockIfAny: (source: Node<ServiceNodeData>, target: Node<ServiceNodeData>, protocol: string) => boolean;

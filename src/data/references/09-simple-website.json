@@ -1,0 +1,275 @@
+{
+  "id": "simple-website",
+  "name": "Simple website",
+  "category": "VPC & Networking",
+  "difficulty": "Beginner",
+  "description": "The minimum correct shape for hosting a website on AWS: a Region containing one VPC with a public subnet (Internet Gateway + Application Load Balancer) and a private subnet (web server), plus an S3 bucket for storage reached over a VPC Gateway Endpoint instead of the public internet.",
+  "learningOutcome": "Shows why public internet traffic can only enter a VPC through an Internet Gateway, why the web server itself belongs in a private subnet behind the ALB, and how private compute reaches S3 securely via a Gateway Endpoint instead of a NAT Gateway.",
+  "nodes": [
+    {
+      "id": "box-region",
+      "type": "boundaryNode",
+      "position": {
+        "x": 20,
+        "y": 20
+      },
+      "data": {
+        "label": "Region (us-east-1)",
+        "boundaryType": "region",
+        "width": 660,
+        "height": 420
+      },
+      "style": {
+        "width": 660,
+        "height": 420
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -3
+    },
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 50,
+        "y": 60
+      },
+      "data": {
+        "label": "VPC (10.0.0.0/16)",
+        "boundaryType": "vpc",
+        "width": 600,
+        "height": 340,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 600,
+        "height": 340
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-public-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 80,
+        "y": 110
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 220,
+        "height": 260,
+        "cidr": "10.0.0.0/24"
+      },
+      "style": {
+        "width": 220,
+        "height": 260
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-private-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 350,
+        "y": 110
+      },
+      "data": {
+        "label": "Private subnet",
+        "boundaryType": "private_subnet",
+        "width": 260,
+        "height": 260,
+        "cidr": "10.0.1.0/24"
+      },
+      "style": {
+        "width": 260,
+        "height": 260
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "node-user",
+      "type": "serviceNode",
+      "position": {
+        "x": -170,
+        "y": 210
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Website Visitor",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 105,
+        "y": 150
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 105,
+        "y": 280
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "Application Load Balancer",
+        "category": "Load Balancing",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-web",
+      "type": "serviceNode",
+      "position": {
+        "x": 400,
+        "y": 215
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Web Server",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Serves the website; only reachable from the ALB."
+      }
+    },
+    {
+      "id": "node-s3-gateway",
+      "type": "serviceNode",
+      "position": {
+        "x": 400,
+        "y": 320
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "S3 Gateway Endpoint",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Lets the private subnet reach S3 over the AWS backbone, without a NAT Gateway."
+      }
+    },
+    {
+      "id": "node-s3",
+      "type": "serviceNode",
+      "position": {
+        "x": 720,
+        "y": 265
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Amazon S3 (Website Storage)",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Global / Region",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Stores site assets, uploads, and backups."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-user-igw",
+      "source": "node-user",
+      "target": "node-igw",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-igw-alb",
+      "source": "node-igw",
+      "target": "node-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-alb-web",
+      "source": "node-alb",
+      "target": "node-web",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-web-endpoint",
+      "source": "node-web",
+      "target": "node-s3-gateway",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-endpoint-s3",
+      "source": "node-s3-gateway",
+      "target": "node-s3",
+      "type": "custom",
+      "data": {
+        "protocol": "Object access",
+        "stepNumber": 5,
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 2000
+      }
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "id": "thumbnail-generator",
+  "name": "Serverless Image Thumbnail Generator",
+  "category": "Serverless / Storage",
+  "difficulty": "Beginner",
+  "description": "Official AWS Event-Driven Pattern: AWS Management Console uploads photos to a Source S3 bucket, which emits an s3:ObjectCreated event notification to an AWS Lambda function inside a private VPC subnet. Armed with an IAM Execution Role, Lambda resizes the image and writes the thumbnail to a Destination S3 bucket via a VPC S3 Gateway Endpoint.",
+  "learningOutcome": "Demonstrates S3 asynchronous event triggers, isolated private VPC compute without public internet exposure, and high-performance zero-cost S3 routing via VPC Gateway Endpoints. Note: the IAM Execution Role node is shown for architectural completeness (a real deployment needs one) but is illustrative only - this simulator does not evaluate IAM permissions, so its presence or absence has no effect on the simulated request.",
+  "nodes": [
+    {
+      "id": "box-region",
+      "type": "boundaryNode",
+      "position": {
+        "x": 40,
+        "y": 20
+      },
+      "data": {
+        "label": "Region (us-east-1)",
+        "boundaryType": "region",
+        "width": 980,
+        "height": 480
+      },
+      "style": {
+        "width": 980,
+        "height": 480
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -3
+    },
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 300,
+        "y": 60
+      },
+      "data": {
+        "label": "VPC (10.0.0.0/16)",
+        "boundaryType": "vpc",
+        "width": 460,
+        "height": 400,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 460,
+        "height": 400
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-az",
+      "type": "boundaryNode",
+      "position": {
+        "x": 330,
+        "y": 100
+      },
+      "data": {
+        "label": "Availability Zone (us-east-1a)",
+        "boundaryType": "az",
+        "width": 400,
+        "height": 330
+      },
+      "style": {
+        "width": 400,
+        "height": 330
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -1
+    },
+    {
+      "id": "box-private-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 350,
+        "y": 190
+      },
+      "data": {
+        "label": "Private subnet (10.0.1.0/24)",
+        "boundaryType": "private_subnet",
+        "width": 360,
+        "height": 210,
+        "cidr": "10.0.1.0/24"
+      },
+      "style": {
+        "width": 360,
+        "height": 210
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "node-console",
+      "type": "serviceNode",
+      "position": {
+        "x": -160,
+        "y": 250
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "AWS Management Console",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Administrator or user uploads raw image assets into the source S3 bucket via the AWS Console."
+      }
+    },
+    {
+      "id": "node-s3-source",
+      "type": "serviceNode",
+      "position": {
+        "x": 100,
+        "y": 250
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Source bucket",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Global / Region",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Stores original uploaded images. Configured with an S3 event notification on s3:ObjectCreated:*."
+      }
+    },
+    {
+      "id": "node-iam",
+      "type": "serviceNode",
+      "position": {
+        "x": 470,
+        "y": 120
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "Permissions Policy",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "IAM execution role granting Lambda s3:GetObject on the source bucket, s3:PutObject on the destination bucket, and AWSLambdaVPCAccessExecutionRole."
+      }
+    },
+    {
+      "id": "node-lambda",
+      "type": "serviceNode",
+      "position": {
+        "x": 380,
+        "y": 250
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "Create thumbnail function",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 5,
+        "multiAz": true,
+        "notes": "Serverless compute function running inside the private subnet. Automatically triggered by S3 event notifications."
+      }
+    },
+    {
+      "id": "node-s3-gateway",
+      "type": "serviceNode",
+      "position": {
+        "x": 570,
+        "y": 250
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "S3 Gateway Endpoint",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "VPC Gateway route entry allowing private subnet compute to reach Amazon S3 over the AWS private network with zero NAT charges."
+      }
+    },
+    {
+      "id": "node-s3-dest",
+      "type": "serviceNode",
+      "position": {
+        "x": 840,
+        "y": 250
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Destination bucket",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Global / Region",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Stores resized thumbnail images for low-latency distribution and client display."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-console-source",
+      "source": "node-console",
+      "target": "node-s3-source",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000,
+        "label": "1. Upload image"
+      }
+    },
+    {
+      "id": "e-source-lambda",
+      "source": "node-s3-source",
+      "target": "node-lambda",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "stepNumber": 2,
+        "interactionType": "event",
+        "isCriticalDependency": true,
+        "timeoutMs": 5000,
+        "label": "2. s3:ObjectCreated"
+      }
+    },
+    {
+      "id": "e-iam-lambda",
+      "source": "node-iam",
+      "target": "node-lambda",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 0,
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1000,
+        "label": "IAM Execution Role"
+      }
+    },
+    {
+      "id": "e-lambda-endpoint",
+      "source": "node-lambda",
+      "target": "node-s3-gateway",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000,
+        "label": "3. VPC Gateway route"
+      }
+    },
+    {
+      "id": "e-endpoint-dest",
+      "source": "node-s3-gateway",
+      "target": "node-s3-dest",
+      "type": "custom",
+      "data": {
+        "protocol": "Object access",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000,
+        "label": "4. Save thumbnail"
+      }
+    }
+  ]
+}

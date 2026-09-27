@@ -17,6 +17,7 @@
  * `dataTierInteraction.ts`, `vpcEndpoint.ts`, `networkPath.ts` (read in full for this audit).
  */
 export const LIVE_ADAPTER_SERVICE_IDS = [
+  'cloudwatch', 'cloudtrail', // managedServices.ts (bounded operation model)
   'waf',                                            // perimeterInspection.ts
   'ec2', 'ecs', 'lambda', 'fargate', 'app_runner',  // computeCapacity.ts (COMPUTE_SERVICE_IDS)
   'nat_gateway',                                     // natGatewayHop.ts
@@ -38,6 +39,9 @@ export const LIVE_ADAPTER_SERVICE_IDS = [
  * entry names the test(s) that back it.
  */
 export const REQUEST_SIMULATION_EVIDENCE: Record<string, string> = {
+  cloudwatch: 'test/managed-services.test.ts: live single-period alarm evaluation',
+  cloudtrail: 'test/managed-services.test.ts: live audit event selection',
+  sns: 'test/managed-services.test.ts: live SNS fanout to permitted queues',
   ec2: 'test/engine.test.ts (tests 2-4, HA template); tests/aws-conformance/compute/ec2.test.ts SVC-EC2-SUCCESS-001',
   ecs: 'test/engine.test.ts (tests 2-4, HA template - node-ecs-az-a/b)',
   fargate: 'tests/aws-conformance/compute/fargate.test.ts SVC-FARGATE-SUCCESS-001, SVC-FARGATE-SERVERLESS-SCALING-001',

@@ -4,6 +4,8 @@ An interactive, in-browser AWS architecture simulator for teaching cloud resilie
 
 Built with React, TypeScript, [@xyflow/react](https://reactflow.dev/), and Tailwind CSS.
 
+New to the app? See [USER_MANUAL.md](USER_MANUAL.md) for how to build, connect, simulate, and break architectures.
+
 ## What it does
 
 - **Design** architectures on a canvas using real AWS service icons, VPCs, subnets, and security boundaries.

@@ -1,3 +1,6 @@
+import { observeAlbRequests } from '../engine/scaling/albObservation.ts';
+import { resetAsg } from '../engine/scaling/asg.ts';
+import { checkConnection, connectionProtocols, interactionTransport, isManagementPair } from '../engine/architecture/connectionContracts.ts';
 import { parseDraft, serializeDraft } from '../engine/persistence/draft.ts';
 import type { Viewport } from '@xyflow/react';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
@@ -21,10 +24,11 @@ import {
   StudentChallenge,
   AvailabilityZone,
   ProtocolType,
-  NodeHealth
+  NodeHealth,
+  NaclRule
 } from '../types/index.ts';
 import { SERVICE_MAP } from '../data/serviceCatalog.ts';
-import { REFERENCE_ARCHITECTURES } from '../data/referenceArchitectures.ts';
+import { REFERENCE_ARCHITECTURES, type ReferenceArchitecture } from '../data/referenceArchitectures.ts';
 import { STUDENT_CHALLENGES } from '../data/studentChallenges.ts';
 import { runLiveSimulation as runSimulation, traceFromSimulation } from '../engine/simulation/liveSimulation.ts';
 import { analyzeArchitecture } from '../engine/analysis/rulesEngine.ts';
@@ -42,6 +46,8 @@ import type { LabReference } from '../data/courseLabs.ts';
 import { runLabReference } from '../engine/labs/runLabReference.ts';
 
 interface ArchitectureContextType {
+  draftName: string;
+  setDraftName: (name: string) => void;
   exportDraft: () => string;
   importDraft: (text: string) => void;
   draftViewport: Viewport | null;
@@ -134,7 +140,7 @@ interface ArchitectureContextType {
   architecturalFindings: Finding[];
 
   // Challenges & Templates
-  loadTemplate: (templateId: string) => void;
+  loadTemplate: (templateId: string, reference?: ReferenceArchitecture) => void;
   activeChallenge: StudentChallenge | null;
   setActiveChallenge: (challenge: StudentChallenge | null) => void;
   challengeResult: { passed: boolean; feedback: string[]; score: number } | null;
@@ -144,6 +150,7 @@ interface ArchitectureContextType {
   showNaclSideColumn: boolean;
   setShowNaclSideColumn: (val: boolean) => void;
   hasCustomNacl: boolean;
+  hasMissingReturnNacl: boolean;
 
   // AWS Cost & Billing Simulator
   costReport: ArchitectureCostReport;
@@ -212,6 +219,14 @@ export const createStarterNodes = (): Node<any>[] =>
     style: { ...n.style }
   }));
 
+// `Date.now()` alone collides whenever two nodes/edges of the same kind are created within the
+// same millisecond (e.g. two quick clicks, or a script/test adding several at once) - React then
+// sees two elements with the same key, and the second creation can silently clobber the first's
+// state instead of adding a new one. A per-session counter guarantees uniqueness regardless of
+// timing.
+let idSequence = 0;
+const uniqueId = (prefix: string) => `${prefix}-${Date.now()}-${++idSequence}`;
+
 export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Start with default VPC and Public/Private subnets on the canvas
   const [nodes, setNodes, rawOnNodesChange] = useNodesState<Node<any>>(createStarterNodes());
@@ -219,6 +234,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const [activeLabReference, setActiveLabReference] = useState<LabReference | null>(null);
   const [canvasRevision, setCanvasRevision] = useState(0);
+  const [draftName, setDraftName] = useState('Untitled draft');
   const [draftViewport, setDraftViewport] = useState<Viewport | null>(null);
 
   // Synchronize dynamic dimension changes (e.g. from NodeResizer) into node.data and node.style
@@ -429,6 +445,16 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     return nodes.some(n => Boolean((n.data as any)?.customNacl));
   }, [nodes]);
 
+  // Distinct from `hasCustomNacl` (any subnet has NACL rules at all, e.g. via "Enable NACL rule
+  // set"): this is specifically the missing-ephemeral-return-rule condition Problem 3.1 diagnoses.
+  // Enabling a NACL preset does NOT set this by default - only the Problem 3.1 reference diagram,
+  // or a subnet where a student has explicitly toggled "Simulate missing return rule", does.
+  const hasMissingReturnNacl = useMemo(() => {
+    return nodes.some(n => (n.data as any)?.customNacl?.inboundRules?.some(
+      (r: NaclRule) => r.isStatelessReturn && r.isMissingReturn
+    ));
+  }, [nodes]);
+
   // Compute Analysis dynamically
   const analysis = useMemo(() => {
     return analyzeArchitecture(nodes, edges);
@@ -500,19 +526,29 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
       defaultProtocol = 'Object access';
     }
 
+    const management = isManagementPair(sourceNode, targetNode);
+    const relationship = management ? 'manages' : 'request';
+    const protocols: ProtocolType[] = management ? ['Event'] : connectionProtocols(sourceNode, targetNode);
+    if (!protocols.length) { window.alert('Behavior not modeled or unsupported interaction for this pair. No request connection was created.'); return; }
+    if (!protocols.includes(defaultProtocol)) defaultProtocol = protocols[0];
+    const validation = checkConnection(sourceNode, targetNode, { protocol: defaultProtocol, relationship });
+    if (validation.status !== 'valid') { window.alert(validation.reason); return; }
     const newEdge: Edge<ConnectionData> = {
       ...connection,
-      id: `edge-${connection.source}-${connection.target}-${Date.now()}`,
+      id: uniqueId(`edge-${connection.source}-${connection.target}`),
       type: 'custom',
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: '#94A3B8'
       },
       data: {
+        relationship,
+        label: management ? (sourceNode.data.serviceId === 'alb' ? 'ALB request metrics' : 'Management') : undefined,
         protocol: defaultProtocol,
+        transport: interactionTransport(defaultProtocol),
         lineStyle: 'straight',
-        interactionType: 'synchronous',
-        isCriticalDependency: true,
+        interactionType: management ? 'event' : 'synchronous',
+        isCriticalDependency: !management,
         timeoutMs: 2500
       }
     };
@@ -533,7 +569,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     const label = count > 0 ? `${serviceDef.name} #${count + 1}` : serviceDef.name;
 
     const newNode: Node<ServiceNodeData> = {
-      id: `node-${serviceId}-${Date.now()}`,
+      id: uniqueId(`node-${serviceId}`),
       type: 'serviceNode',
       position: position || {
         x: 100 + Math.random() * 400,
@@ -582,7 +618,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     const boundaryPos = position || { x: 100, y: 100 };
 
     const candidateBoundary: Node<any> = {
-      id: `box-${boundaryType}-${Date.now()}`,
+      id: uniqueId(`box-${boundaryType}`),
       type: 'boundaryNode',
       position: boundaryPos,
       data: {
@@ -757,21 +793,15 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   // Update edge data
   const updateEdgeData = useCallback((id: string, partialData: Partial<ConnectionData>) => {
-    setEdges((eds) =>
-      eds.map((edge) => {
-        if (edge.id === id) {
-          return {
-            ...edge,
-            data: {
-              ...(edge.data as ConnectionData),
-              ...partialData
-            }
-          };
-        }
-        return edge;
-      })
-    );
-  }, [setEdges]);
+    const edge = edges.find(e => e.id === id);
+    if (!edge) return;
+    const data = { ...edge.data, ...partialData, ...(partialData.protocol ? { transport: interactionTransport(partialData.protocol) } : {}) } as ConnectionData;
+    if (['protocol', 'action', 'transport', 'relationship'].some(key => key in partialData)) {
+      const result = checkConnection(nodes.find(n => n.id === edge.source), nodes.find(n => n.id === edge.target), data);
+      if (result.status === 'invalid') { window.alert(result.reason); return; }
+    }
+    setEdges(previous => previous.map(e => e.id === id ? { ...e, data } : e));
+  }, [edges, nodes, setEdges]);
 
   // Remove a specific node and its connected edges
   const removeNode = useCallback((id: string) => {
@@ -788,7 +818,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     if (!targetNode) return;
 
     const serviceDef = SERVICE_MAP[targetNode.data.serviceId];
-    const newId = `node-${targetNode.data.serviceId}-${Date.now()}`;
+    const newId = uniqueId(`node-${targetNode.data.serviceId}`);
     const baseLabel = targetNode.data.label || serviceDef?.name || 'Node';
 
     const newNode: Node<ServiceNodeData> = {
@@ -973,8 +1003,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   }, [setNodes, setEdges]);
 
   // Load a reference architecture template
-  const loadTemplate = useCallback((templateId: string) => {
-    const template = REFERENCE_ARCHITECTURES.find(t => t.id === templateId);
+  const loadTemplate = useCallback((templateId: string, reference?: ReferenceArchitecture) => {
+    const template = structuredClone(reference ?? REFERENCE_ARCHITECTURES.find(t => t.id === templateId));
     if (!template) return;
 
     setActiveLabReference(null);
@@ -994,7 +1024,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
       || serviceNodes.find(n => ['internet_gateway', 'cloudfront', 'route53', 'alb', 'api_gateway'].includes((n.data as any).serviceId))
       || serviceNodes[0];
 
-    if (ingressNode) {
+    if (template.scenario) setScenario(template.scenario);
+    else if (ingressNode) {
       setScenario(prev => ({
         ...prev,
         startNodeId: ingressNode.id
@@ -1022,13 +1053,25 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const runScenario = useCallback(() => {
     const result = evaluateCurrentScenario();
+    const scaled = observeAlbRequests(effectiveNodes, effectiveEdges, result);
+    if (scaled.notes.length) {
+      result.summary += ` Scaling: ${scaled.notes.join(' ')}`;
+      setNodes(scaled.nodes.map(next => {
+        const original = nodes.find(n => n.id === next.id);
+        return original ? { ...next, data: { ...next.data, health: original.data.health } } : next;
+      }));
+      // Preserve base edge state; temporary failure overrides must not be saved.
+      setEdges(scaled.edges.map(next => edges.find(e => e.id === next.id) ?? next));
+    }
     setSimulationResult(result);
+    if (result.serviceStates && Object.keys(result.serviceStates).length) setNodes(previous => previous.map(node => result.serviceStates?.[node.id]
+      ? { ...node, data: { ...node.data, customConfig: { ...node.data.customConfig, serviceRuntime: result.serviceStates[node.id] } } } : node));
     setActiveStepIndex(0);
     setHoveredStepIndex(null);
     setHighlightTaskFlow(true);
     setIsPlaying(true);
     setAppMode('simulate');
-  }, [evaluateCurrentScenario]);
+  }, [evaluateCurrentScenario, effectiveNodes, effectiveEdges, nodes, edges]);
 
   // Toggle Task Flow lines on/off with smart auto-simulation
   const toggleTaskFlow = useCallback(() => {
@@ -1037,6 +1080,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
       if (next && !simulationResult && nodes.length > 0) {
         const result = evaluateCurrentScenario();
         setSimulationResult(result);
+    if (result.serviceStates && Object.keys(result.serviceStates).length) setNodes(previous => previous.map(node => result.serviceStates?.[node.id]
+      ? { ...node, data: { ...node.data, customConfig: { ...node.data.customConfig, serviceRuntime: result.serviceStates[node.id] } } } : node));
         setActiveStepIndex(null);
       }
       return next;
@@ -1052,8 +1097,8 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     setActiveStepIndex(null);
     setHoveredStepIndex(null);
     // Clear simulation pulses from nodes & edges
-    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, isSimulating: false, simulationStatus: 'idle' } })));
-    setEdges(eds => eds.map(e => ({
+    setNodes(nds => resetAsg(nds, []).nodes.map(n => ({ ...n, data: { ...n.data, isSimulating: false, simulationStatus: 'idle' } })));
+    setEdges(eds => resetAsg(nodes, eds).edges.map(e => ({
       ...e,
       data: {
         ...(e.data as ConnectionData),
@@ -1068,7 +1113,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
         flowStatusCode: undefined
       }
     })));
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges, nodes]);
 
   // Step Forward in simulation
   const stepForward = useCallback(() => {
@@ -1324,7 +1369,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     setChallengeResult(res);
   }, [activeChallenge, nodes, edges, analysis, simulationResult, validationFindings, architecturalFindings]);
 
-  const exportDraft = () => serializeDraft({ nodes, edges, scenario, simulationResult,
+  const exportDraft = () => serializeDraft({ draftName, nodes, edges, scenario, simulationResult,
     activeFailures, activeLabReference, activeChallengeId: activeChallenge?.id ?? null,
     challengeResult, appMode, selectedNodeId, selectedEdgeId, activeStepIndex,
     playbackSpeed, highlightTaskFlow, showNaclSideColumn, viewport: draftViewport });
@@ -1332,6 +1377,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     const draft = parseDraft(text);
     const challenge = draft.activeChallengeId ? STUDENT_CHALLENGES.find(c => c.id === draft.activeChallengeId) : null;
     if (draft.activeChallengeId && !challenge) throw new Error('This draft references a challenge unavailable in this version.');
+    setDraftName(draft.draftName ?? 'Untitled draft');
     setIsPlaying(false); setHoveredStepIndex(null);
     setNodes(draft.nodes); setEdges(draft.edges); setScenario(draft.scenario);
     setSimulationResult(draft.simulationResult); setActiveFailures(draft.activeFailures);
@@ -1346,7 +1392,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   return (
     <ArchitectureContext.Provider
       value={{
-        exportDraft, importDraft, draftViewport, setDraftViewport,
+        draftName, setDraftName, exportDraft, importDraft, draftViewport, setDraftViewport,
         nodes,
         setNodes,
         onNodesChange,
@@ -1429,6 +1475,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
         showNaclSideColumn,
         setShowNaclSideColumn,
         hasCustomNacl,
+        hasMissingReturnNacl,
 
         costReport
       }}

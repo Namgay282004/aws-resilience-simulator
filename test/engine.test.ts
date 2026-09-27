@@ -1149,6 +1149,52 @@ test("36b. FinOps: Recommends an S3 Gateway Endpoint Only When One Is Actually M
   assert.ok(!tipWithEndpoint, 'Must NOT recommend adding one once it is actually present');
 });
 
+test('36c. Regional pricing: US East is the unscaled baseline; Europe and Asia Pacific cost more', () => {
+  const ec2Node: any = { id: 'node-ec2', data: { serviceId: 'ec2', label: 'App Server', category: 'Compute', replicas: 1, customConfig: { instanceType: 't3.micro' } } };
+
+  const us = calculateNodeCost(ec2Node, 1.0, 'us-east-1');
+  const eu = calculateNodeCost(ec2Node, 1.0, 'eu-west-1');
+  const ap = calculateNodeCost(ec2Node, 1.0, 'ap-south-1');
+
+  // US East must exactly match the module's own unscaled dollar figures - it's the baseline every
+  // other hardcoded constant in this file is written in. (Includes the module's default 30GB gp3
+  // EBS volume alongside compute.)
+  const t3micro = EC2_INSTANCE_TYPES['t3.micro'];
+  const expectedUsBaseline = t3micro.hourly * 730 + 30 * 0.08;
+  assert.ok(Math.abs(us.monthlyCost - expectedUsBaseline) < 0.05, `expected ~$${expectedUsBaseline.toFixed(2)}, got ${us.monthlyCost}`);
+
+  assert.ok(eu.monthlyCost > us.monthlyCost, 'Europe must cost more than the US baseline');
+  assert.ok(ap.monthlyCost > eu.monthlyCost, 'Asia Pacific must cost more than Europe for compute');
+});
+
+test('36d. Regional pricing: services that bill a flat global rate in real AWS (Route 53, EKS) are not regionally scaled', () => {
+  const route53Node: any = { id: 'r53', data: { serviceId: 'route53', label: 'Hosted Zone', category: 'Networking & Content Delivery' } };
+  const eksNode: any = { id: 'eks1', data: { serviceId: 'eks', label: 'EKS Cluster', category: 'Compute' } };
+
+  for (const node of [route53Node, eksNode]) {
+    const us = calculateNodeCost(node, 1.0, 'us-east-1');
+    const ap = calculateNodeCost(node, 1.0, 'ap-south-1');
+    assert.strictEqual(us.monthlyCost, ap.monthlyCost, `${node.data.serviceId} should not vary by region`);
+  }
+});
+
+test('36e. Regional pricing: the architecture-wide report carries the selected region through to its total and FinOps tips', () => {
+  const tpl = REFERENCE_ARCHITECTURES.find(a => a.id === 'vpc-nat-autoscaling-3tier')!;
+  const usReport = calculateArchitectureCost(tpl.nodes, 'normal', 'us-east-1');
+  const apReport = calculateArchitectureCost(tpl.nodes, 'normal', 'ap-south-1');
+
+  assert.strictEqual(usReport.region, 'us-east-1');
+  assert.strictEqual(apReport.region, 'ap-south-1');
+  assert.strictEqual(apReport.regionLabel, 'Asia Pacific');
+  assert.ok(apReport.monthlyTotal > usReport.monthlyTotal, 'Asia Pacific total must exceed the US baseline total');
+
+  const usTip = usReport.recommendations.find(r => r.id === 'tip-s3-gateway-endpoint');
+  const apTip = apReport.recommendations.find(r => r.id === 'tip-s3-gateway-endpoint');
+  if (usTip && apTip) {
+    assert.ok(apTip.estimatedMonthlySavings! > usTip.estimatedMonthlySavings!, 'FinOps savings estimates should scale with the selected region too');
+  }
+});
+
 test('37. Dynamic Boundary Layer Hierarchy: VPC inside AZ inside Region maintains child-above-parent stacking', () => {
   const regionNode: any = {
     id: 'box-region',

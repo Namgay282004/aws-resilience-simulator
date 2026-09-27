@@ -1,5 +1,24 @@
 # Behavioral foundation: incremental migration
 
+## Reference library and Export workflow (2026-09-24)
+
+Reference Diagrams is now on the canvas. Fourteen built-ins are individual JSON files in
+`src/data/references/`, with a generated registry and compatible existing import API.
+Save as reference exports the same source-compatible format; the user copies it into the
+folder manually, then restarts dev or builds. Draft export remains a separate full-workspace
+format. Export now uses a light dialog with file and browser-draft sections.
+Validation: 469 tests and production build pass. See `src/data/references/README.md`.
+
+## Latest increment: CloudWatch / ASG scale-out (2026-09-24)
+
+Implemented an explicit, persisted ASG scale-out controller with consecutive CloudWatch
+samples, simple-policy cooldown, startup/warmup, generated EC2 nodes and ALB/NLB readiness.
+Canvas Send Request now drives ALB request-count observations automatically. CloudWatch’s
+Config panel selects simple or illustrative target tracking. Reference diagram:
+**CloudWatch → ASG: Live EC2 Scale-Out**. See
+[ASG_SCALING.md](../features/ASG_SCALING.md) for configuration, tests and precise limitations.
+This is bounded scale-out support, not full Auto Scaling/ECS scheduling fidelity.
+
 ## Implemented increment
 
 The existing live request simulator remains the execution entry point. This increment adds

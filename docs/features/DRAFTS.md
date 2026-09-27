@@ -1,11 +1,11 @@
 # Save and resume drafts
 
-Open **Drafts** in the header:
+Open **Export** in the header:
 
 - **Save draft** stores one manual snapshot in this browser for this site.
 - **Resume draft** restores that snapshot after confirming replacement of current work.
-- **Export draft JSON** downloads a portable, versioned snapshot.
-- **Import draft JSON** restores a compatible snapshot after validation and confirmation.
+- **Download JSON** downloads a portable, versioned snapshot.
+- **Upload JSON** restores a compatible snapshot after validation and confirmation.
 
 Saved state includes nodes and their complete configuration, edges, layout and boundary sizes,
 network identities, scenario, simulation result and playback position/speed, active failures,
@@ -28,3 +28,31 @@ Verification: provider integration test exports a configured running workspace, 
 imports it and verifies scenario, failure, simulation result, viewport and paused playback.
 Malformed/unsupported imports leave existing state unchanged. Full regression suite and
 production build pass.
+
+
+## Named drafts
+
+Open **Export** and edit **Draft name**. Browser saves, JSON downloads, and update recovery
+retain this name. Older unnamed drafts open as “Untitled draft”. Use **Download JSON** and **Upload JSON** inside Export for files. A draft named “Lab 3” downloads
+as “Lab 3.json”; filesystem-unsafe characters are replaced with hyphens. A trailing .json
+is not duplicated. Renaming does not change files already downloaded or create extra browser
+save slots. Save again to persist a rename in the browser.
+
+## Save location and compact navigation
+
+Export now owns the JSON workflow, replacing the old audit/topology-only export modal.
+Downloads contain the complete versioned draft, including boundary geometry and runtime.
+The header no longer shows separate Drafts/Download JSON/Upload JSON controls. Image export
+remains available separately. The AWS Cloud watermark was removed from the canvas.
+
+When supported, “Choose folder and filename…” opens the browser save-file picker. Otherwise
+use the browser download location; browser settings control whether it asks for a folder.
+The application cannot silently set a filesystem path. Picker cancellation leaves work intact.
+Source: https://developer.mozilla.org/en-US/docs/Web/API/Window/showSaveFilePicker
+
+## Export dialog design
+
+Export uses a light, focused dialog with separate JSON-file and browser-draft sections,
+a filename preview, primary Download action, secondary Upload action, and save-location choice.
+Keyboard focus stays within the dialog; Escape closes and returns focus to the invoking control.
+Reference diagrams are a different format: use the canvas Reference Diagrams → Save as reference.

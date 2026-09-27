@@ -1,0 +1,305 @@
+{
+  "id": "ec2-auto-scaling-failure-recovery",
+  "name": "Auto Scaling: EC2 Instance Failure Recovery",
+  "category": "High Availability",
+  "difficulty": "Intermediate",
+  "description": "An Auto Scaling Group runs two EC2 instances across AZ-A and AZ-B behind an Application Load Balancer. Fail one EC2 instance (right-click it -> Simulate Failure) and re-run the scenario to see the ALB detect the failed health check and instantly route all traffic to the surviving instance, while the Auto Scaling Group replaces the failed one in the background.",
+  "learningOutcome": "Shows the two mechanisms that work together during an EC2 failure: the ALB's health check immediately removes the bad instance from rotation (seconds), while the Auto Scaling Group separately detects the same failure and launches a replacement to restore full capacity (minutes) - and how a traffic spike independently triggers the ASG to scale out.",
+  "nodes": [
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 60,
+        "y": 40
+      },
+      "data": {
+        "label": "VPC",
+        "boundaryType": "vpc",
+        "width": 780,
+        "height": 440,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 780,
+        "height": 440
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-public-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 90,
+        "y": 70
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 180,
+        "height": 140
+      },
+      "style": {
+        "width": 180,
+        "height": 140
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-private-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 320,
+        "y": 70
+      },
+      "data": {
+        "label": "Private subnet",
+        "boundaryType": "private_subnet",
+        "width": 480,
+        "height": 380
+      },
+      "style": {
+        "width": 480,
+        "height": 380
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "node-user",
+      "type": "serviceNode",
+      "position": {
+        "x": -180,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "User",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 110,
+        "y": 80
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 110,
+        "y": 150
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "Application Load Balancer",
+        "category": "Load Balancing",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-ec2-a",
+      "type": "serviceNode",
+      "position": {
+        "x": 350,
+        "y": 100
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "EC2 Instance (AZ-A)",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-ec2-b",
+      "type": "serviceNode",
+      "position": {
+        "x": 350,
+        "y": 260
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "EC2 Instance (AZ-B)",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-B",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-asg",
+      "type": "serviceNode",
+      "position": {
+        "x": 560,
+        "y": 180
+      },
+      "data": {
+        "serviceId": "ec2_auto_scaling",
+        "label": "EC2 Auto Scaling Group (min 2, max 6)",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Continuously health-checks every instance and replaces any that fail; scales out on sustained high traffic."
+      }
+    },
+    {
+      "id": "node-rds",
+      "type": "serviceNode",
+      "position": {
+        "x": 700,
+        "y": 180
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Amazon RDS (Multi-AZ)",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-user-igw",
+      "source": "node-user",
+      "target": "node-igw",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-igw-alb",
+      "source": "node-igw",
+      "target": "node-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-alb-ec2-a",
+      "source": "node-alb",
+      "target": "node-ec2-a",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-alb-ec2-b",
+      "source": "node-alb",
+      "target": "node-ec2-b",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-asg-ec2-a",
+      "source": "node-asg",
+      "target": "node-ec2-a",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "interactionType": "asynchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-asg-ec2-b",
+      "source": "node-asg",
+      "target": "node-ec2-b",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "interactionType": "asynchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-ec2-a-rds",
+      "source": "node-ec2-a",
+      "target": "node-rds",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "e-ec2-b-rds",
+      "source": "node-ec2-b",
+      "target": "node-rds",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    }
+  ]
+}

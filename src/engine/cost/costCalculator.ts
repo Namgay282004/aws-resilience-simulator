@@ -37,6 +37,70 @@ export interface ArchitectureCostReport {
   trafficMultiplier: number;
   trafficLevelName: string;
   recommendations: FinOpsTip[];
+  region: CostRegion;
+  regionLabel: string;
+}
+
+/**
+ * Every dollar figure in this module (`EC2_INSTANCE_TYPES`, `EBS_VOLUME_TYPES`, etc.) is a US East
+ * (N. Virginia / us-east-1) on-demand rate - AWS's usual lowest-cost commercial region and the
+ * baseline most public pricing comparisons use. Region names shown in the UI stay continent-level
+ * (never a specific city) at the requesting user's request, but the multipliers below are grounded
+ * in a real representative region per continent so the relative cost difference means something:
+ * Europe -> EU-West (Ireland), Asia Pacific -> AP-South (Mumbai).
+ *
+ * These are a single blended premium per resource category, not per-SKU pricing pulled from AWS's
+ * live Price List API - AWS's actual per-instance-type, per-GB rates vary individually by region
+ * and change over time. Treat this as an educational approximation of "which region costs more,
+ * roughly how much," the same way the rest of this cost estimator is illustrative rather than a
+ * live billing integration. It's grounded in AWS's well-documented, stable regional pricing
+ * pattern - US regions cheapest, EU next, Asia Pacific (and Mumbai specifically) commonly ~20-30%
+ * above US East for compute - not invented from nothing, but not a substitute for the AWS Pricing
+ * Calculator either.
+ */
+export type CostRegion = 'us-east-1' | 'eu-west-1' | 'ap-south-1';
+
+export const COST_REGIONS: { id: CostRegion; label: string }[] = [
+  { id: 'us-east-1', label: 'United States' },
+  { id: 'eu-west-1', label: 'Europe' },
+  { id: 'ap-south-1', label: 'Asia Pacific' }
+];
+
+export const REGION_LABELS: Record<CostRegion, string> = Object.fromEntries(
+  COST_REGIONS.map(r => [r.id, r.label])
+) as Record<CostRegion, string>;
+
+type RegionCategoryBucket = 'compute' | 'storage' | 'database' | 'networking';
+
+const REGION_MULTIPLIERS: Record<CostRegion, Record<RegionCategoryBucket, number>> = {
+  'us-east-1': { compute: 1.00, storage: 1.00, database: 1.00, networking: 1.00 },
+  'eu-west-1': { compute: 1.09, storage: 1.08, database: 1.10, networking: 1.06 },
+  'ap-south-1': { compute: 1.25, storage: 1.20, database: 1.28, networking: 1.30 }
+};
+
+// A small number of services genuinely bill at one flat, global rate in real AWS regardless of
+// region (Route 53's hosted zone/query fees, EKS's per-cluster control-plane fee) - applying a
+// regional multiplier to those would be actively wrong, not just approximate, so they're exempt.
+const REGION_FLAT_RATE_SERVICE_IDS = new Set(['route53', 'eks']);
+
+function regionCategoryBucket(category: ServiceCategory): RegionCategoryBucket {
+  switch (category) {
+    case 'Storage':
+      return 'storage';
+    case 'Databases':
+      return 'database';
+    case 'Networking & Content Delivery':
+    case 'Networking':
+    case 'Load Balancing':
+    case 'DNS / Edge':
+    case 'Security, Identity & Compliance':
+    case 'Security':
+    case 'Integration & Messaging':
+    case 'Messaging':
+      return 'networking';
+    default:
+      return 'compute';
+  }
 }
 
 // 730 hours in an average AWS billing month (365 * 24 / 12)
@@ -474,7 +538,11 @@ for (const { serviceIds, module } of PRICING_MODULE_ENTRIES) {
  * dispatching to that service's pricing module (falling back to a flat baseline estimate for
  * any catalog service without one).
  */
-export function calculateNodeCost(node: Node<ServiceNodeData>, trafficMultiplier = 1.0): NodeCostEstimate {
+export function calculateNodeCost(
+  node: Node<ServiceNodeData>,
+  trafficMultiplier = 1.0,
+  region: CostRegion = 'us-east-1'
+): NodeCostEstimate {
   const serviceId = node.data.serviceId || 'ec2';
   const label = node.data.label || serviceId;
   const category = node.data.category || 'Compute';
@@ -483,9 +551,16 @@ export function calculateNodeCost(node: Node<ServiceNodeData>, trafficMultiplier
   const custom = node.data.customConfig || {};
 
   const pricingModule = PRICING_MODULE_REGISTRY[serviceId] || fallbackModule;
-  const { lineItems, configSummary, freeTierEligible } = pricingModule({
+  const { lineItems: baseLineItems, configSummary, freeTierEligible } = pricingModule({
     node, label, replicas, multiAz, custom, trafficMultiplier
   });
+
+  const regionMultiplier = REGION_FLAT_RATE_SERVICE_IDS.has(serviceId)
+    ? 1
+    : REGION_MULTIPLIERS[region][regionCategoryBucket(category)];
+  const lineItems = regionMultiplier === 1
+    ? baseLineItems
+    : baseLineItems.map(item => ({ ...item, cost: item.cost * regionMultiplier }));
 
   const monthlyCost = lineItems.reduce((sum, item) => sum + item.cost, 0);
   const hourlyCost = monthlyCost / HOURS_PER_MONTH;
@@ -509,12 +584,13 @@ export function calculateNodeCost(node: Node<ServiceNodeData>, trafficMultiplier
  */
 export function calculateArchitectureCost(
   nodes: Node<any>[],
-  trafficLevel = 'normal'
+  trafficLevel = 'normal',
+  region: CostRegion = 'us-east-1'
 ): ArchitectureCostReport {
   const serviceNodes = nodes.filter(n => n.type === 'serviceNode' || (n.type !== 'boundaryNode' && (n.data as any)?.serviceId));
   const trafficMultiplier = getTrafficScaleFactor(trafficLevel);
 
-  const nodeCosts: NodeCostEstimate[] = serviceNodes.map(node => calculateNodeCost(node, trafficMultiplier));
+  const nodeCosts: NodeCostEstimate[] = serviceNodes.map(node => calculateNodeCost(node, trafficMultiplier, region));
 
   let monthlyTotal = 0;
   const byCategory: Record<string, number> = {};
@@ -541,7 +617,7 @@ export function calculateArchitectureCost(
       severity: 'high',
       title: 'Add Free S3 Gateway VPC Endpoint',
       description: 'Your architecture has a NAT Gateway ($32.40/mo + $0.045/GB) and S3 storage. Adding an S3 Gateway Endpoint routes S3 traffic directly over the AWS private network for FREE, completely eliminating NAT data processing fees.',
-      estimatedMonthlySavings: 15.00 * trafficMultiplier,
+      estimatedMonthlySavings: 15.00 * trafficMultiplier * REGION_MULTIPLIERS[region].networking,
       affectedNodeIds: natNodes.map(n => n.id)
     });
   }
@@ -576,7 +652,7 @@ export function calculateArchitectureCost(
       severity: 'info',
       title: 'Upgrade to AWS Graviton Processors (m6g / c7g)',
       description: 'AWS Graviton-based ARM instances deliver up to 40% better price performance and are ~20% cheaper than comparable x86 instances.',
-      estimatedMonthlySavings: 12.00 * x86Ec2.length,
+      estimatedMonthlySavings: 12.00 * x86Ec2.length * REGION_MULTIPLIERS[region].compute,
       affectedNodeIds: x86Ec2.map(n => n.id)
     });
   }
@@ -589,7 +665,7 @@ export function calculateArchitectureCost(
       severity: 'info',
       title: 'Enable S3 Intelligent-Tiering',
       description: 'Objects in S3 Standard that are not accessed for 30+ days can automatically shift to infrequent and archive access tiers, saving up to 68% on storage fees with zero retrieval penalties.',
-      estimatedMonthlySavings: 8.00,
+      estimatedMonthlySavings: 8.00 * REGION_MULTIPLIERS[region].storage,
       affectedNodeIds: standardS3.map(n => n.id)
     });
   }
@@ -602,6 +678,8 @@ export function calculateArchitectureCost(
     nodeCosts,
     trafficMultiplier,
     trafficLevelName: trafficLevel.toUpperCase(),
-    recommendations
+    recommendations,
+    region,
+    regionLabel: REGION_LABELS[region]
   };
 }

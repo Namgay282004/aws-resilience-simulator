@@ -1,0 +1,251 @@
+{
+  "id": "cloudwatch-asg-live-scaling",
+  "name": "CloudWatch → ASG: Live EC2 Scale-Out",
+  "category": "Compute & Auto Scaling",
+  "difficulty": "Intermediate",
+  "description": "Use Send Request through the internal ALB twice at Normal traffic. Each run represents 120 requests over one minute; 60 requests per initial target exceeds the threshold of 50. A new EC2 appears directly on the canvas. Select CloudWatch → Config to change policy type. Watch Launching → InService, cooldown, and the maximum of four instances. Reset scaling removes generated instances. Traffic batches are synthetic teaching inputs, not measured AWS metrics.",
+  "learningOutcome": "CloudWatch alarm → simple scaling policy → desired capacity → instance launch/warmup → eligible ALB target. Scaling is real persisted simulator state, not a walkthrough. One subnet; no scale-in or ECS scheduling.",
+  "nodes": [
+    {
+      "id": "asg-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 380,
+        "y": 0
+      },
+      "style": {
+        "width": 760,
+        "height": 610
+      },
+      "data": {
+        "label": "Demo VPC · 10.40.0.0/16",
+        "boundaryType": "vpc",
+        "cidr": "10.40.0.0/16",
+        "width": 760,
+        "height": 610
+      }
+    },
+    {
+      "id": "asg-subnet",
+      "type": "boundaryNode",
+      "parentId": "asg-vpc",
+      "position": {
+        "x": 30,
+        "y": 60
+      },
+      "style": {
+        "width": 700,
+        "height": 510
+      },
+      "data": {
+        "label": "Private application subnet · 10.40.1.0/24",
+        "boundaryType": "private_subnet",
+        "cidr": "10.40.1.0/24",
+        "width": 700,
+        "height": 510
+      }
+    },
+    {
+      "id": "asg-alarm",
+      "type": "serviceNode",
+      "position": {
+        "x": 20,
+        "y": 40
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "ALB requests · CloudWatch",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "threshold": 50,
+          "metricValue": 90,
+          "metricName": "Simulated ALBRequestCountPerTarget"
+        }
+      }
+    },
+    {
+      "id": "asg-group",
+      "type": "serviceNode",
+      "position": {
+        "x": 210,
+        "y": 180
+      },
+      "data": {
+        "serviceId": "ec2_auto_scaling",
+        "label": "Demo ASG",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "asg": {
+            "templateId": "asg-web-1",
+            "memberIds": [
+              "asg-web-1",
+              "asg-web-2"
+            ],
+            "alarmId": "asg-alarm",
+            "loadBalancerId": "asg-alb",
+            "min": 2,
+            "max": 4,
+            "adjustment": 1,
+            "period": 60,
+            "evaluationPeriods": 2,
+            "launchSeconds": 30,
+            "warmupSeconds": 30,
+            "cooldownSeconds": 120,
+            "metricSource": "alb",
+            "policyType": "simple",
+            "targetValue": 50
+          }
+        }
+      }
+    },
+    {
+      "id": "asg-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 440,
+        "y": 60
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "Internal ALB",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {}
+      },
+      "parentId": "asg-subnet"
+    },
+    {
+      "id": "asg-web-1",
+      "type": "serviceNode",
+      "position": {
+        "x": 30,
+        "y": 60
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Web EC2 1 · launch blueprint",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {},
+        "networkIdentity": {
+          "vpcId": "asg-vpc",
+          "subnetId": "asg-subnet",
+          "privateIp": "10.40.1.10"
+        }
+      },
+      "parentId": "asg-subnet"
+    },
+    {
+      "id": "asg-web-2",
+      "type": "serviceNode",
+      "position": {
+        "x": 210,
+        "y": 60
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Web EC2 2",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {},
+        "networkIdentity": {
+          "vpcId": "asg-vpc",
+          "subnetId": "asg-subnet",
+          "privateIp": "10.40.1.11"
+        }
+      },
+      "parentId": "asg-subnet"
+    }
+  ],
+  "edges": [
+    {
+      "id": "asg-alb-metrics",
+      "type": "custom",
+      "source": "asg-alb",
+      "target": "asg-alarm",
+      "data": {
+        "protocol": "Event",
+        "label": "ALB request metrics",
+        "relationship": "manages",
+        "asgMonitoringFor": "asg-group"
+      }
+    },
+    {
+      "id": "asg-alarm-policy",
+      "type": "custom",
+      "source": "asg-alarm",
+      "target": "asg-group",
+      "data": {
+        "protocol": "Event",
+        "label": "Alarm action · simple scaling",
+        "relationship": "manages"
+      }
+    },
+    {
+      "id": "asg-manages-asg-web-1",
+      "type": "custom",
+      "source": "asg-group",
+      "target": "asg-web-1",
+      "data": {
+        "protocol": "Event",
+        "label": "Explicit member",
+        "relationship": "manages"
+      }
+    },
+    {
+      "id": "asg-target-asg-web-1",
+      "type": "custom",
+      "source": "asg-alb",
+      "target": "asg-web-1",
+      "data": {
+        "protocol": "HTTP",
+        "label": "Application target",
+        "relationship": "request"
+      }
+    },
+    {
+      "id": "asg-manages-asg-web-2",
+      "type": "custom",
+      "source": "asg-group",
+      "target": "asg-web-2",
+      "data": {
+        "protocol": "Event",
+        "label": "Explicit member",
+        "relationship": "manages"
+      }
+    },
+    {
+      "id": "asg-target-asg-web-2",
+      "type": "custom",
+      "source": "asg-alb",
+      "target": "asg-web-2",
+      "data": {
+        "protocol": "HTTP",
+        "label": "Application target",
+        "relationship": "request"
+      }
+    }
+  ]
+}

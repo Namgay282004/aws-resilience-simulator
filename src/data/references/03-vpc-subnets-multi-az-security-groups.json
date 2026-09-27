@@ -1,0 +1,479 @@
+{
+  "id": "vpc-subnets-multi-az-security-groups",
+  "name": "Multi-AZ VPC with Public & Private Subnets & Security Groups",
+  "category": "Networking & VPC Design",
+  "difficulty": "Intermediate",
+  "description": "Official AWS Architecture: Region boundary, VPC, dual Availability Zones, Public subnets (Web servers), Private subnets (Database servers), cross-AZ Security Groups, Internet Gateway, ALB, and S3 Gateway Endpoint.",
+  "learningOutcome": "Demonstrates the foundational AWS 3-tier networking model: public ingress through IGW & ALB, database isolation in private subnets, security group boundaries, and direct S3 VPC gateway routing.",
+  "nodes": [
+    {
+      "id": "box-region",
+      "type": "boundaryNode",
+      "position": {
+        "x": 20,
+        "y": 20
+      },
+      "data": {
+        "label": "Region",
+        "boundaryType": "region",
+        "width": 890,
+        "height": 600
+      },
+      "style": {
+        "width": 890,
+        "height": 600
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": -3
+    },
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 125,
+        "y": 90
+      },
+      "data": {
+        "label": "VPC",
+        "boundaryType": "vpc",
+        "width": 770,
+        "height": 490,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 770,
+        "height": 490
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-az-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 165,
+        "y": 50
+      },
+      "data": {
+        "label": "Availability Zone",
+        "boundaryType": "az",
+        "width": 330,
+        "height": 550
+      },
+      "style": {
+        "width": 330,
+        "height": 550
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": -1
+    },
+    {
+      "id": "box-az-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 535,
+        "y": 50
+      },
+      "data": {
+        "label": "Availability Zone",
+        "boundaryType": "az",
+        "width": 330,
+        "height": 550
+      },
+      "style": {
+        "width": 330,
+        "height": 550
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": -1
+    },
+    {
+      "id": "box-pub-subnet-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 190,
+        "y": 150
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 280,
+        "height": 180
+      },
+      "style": {
+        "width": 280,
+        "height": 180
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-pub-subnet-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 560,
+        "y": 150
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 280,
+        "height": 180
+      },
+      "style": {
+        "width": 280,
+        "height": 180
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-sg-web",
+      "type": "boundaryNode",
+      "position": {
+        "x": 125,
+        "y": 200
+      },
+      "data": {
+        "label": "Security group",
+        "boundaryType": "security_group",
+        "width": 770,
+        "height": 120
+      },
+      "style": {
+        "width": 770,
+        "height": 120
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": 1
+    },
+    {
+      "id": "box-priv-subnet-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 190,
+        "y": 370
+      },
+      "data": {
+        "label": "Private subnet",
+        "boundaryType": "private_subnet",
+        "width": 280,
+        "height": 180
+      },
+      "style": {
+        "width": 280,
+        "height": 180
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-priv-subnet-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 560,
+        "y": 370
+      },
+      "data": {
+        "label": "Private subnet",
+        "boundaryType": "private_subnet",
+        "width": 280,
+        "height": 180
+      },
+      "style": {
+        "width": 280,
+        "height": 180
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-sg-db",
+      "type": "boundaryNode",
+      "position": {
+        "x": 125,
+        "y": 420
+      },
+      "data": {
+        "label": "Security group",
+        "boundaryType": "security_group",
+        "width": 770,
+        "height": 120
+      },
+      "style": {
+        "width": 770,
+        "height": 120
+      },
+      "draggable": true,
+      "selectable": true,
+      "zIndex": 1
+    },
+    {
+      "id": "node-s3",
+      "type": "serviceNode",
+      "position": {
+        "x": 42,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Amazon S3",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Global / Region",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-s3-gateway",
+      "type": "serviceNode",
+      "position": {
+        "x": 190,
+        "y": 480
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "S3 gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 472,
+        "y": 65
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 200,
+        "y": 160
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "Application Load Balancer",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 2,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-web-a",
+      "type": "serviceNode",
+      "position": {
+        "x": 275,
+        "y": 225
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Web servers",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 2,
+        "multiAz": false,
+        "autoScalingEnabled": true,
+        "minReplicas": 2,
+        "maxReplicas": 6
+      }
+    },
+    {
+      "id": "node-web-b",
+      "type": "serviceNode",
+      "position": {
+        "x": 645,
+        "y": 225
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Web servers",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-B",
+        "subnet": "public",
+        "replicas": 2,
+        "multiAz": false,
+        "autoScalingEnabled": true,
+        "minReplicas": 2,
+        "maxReplicas": 6
+      }
+    },
+    {
+      "id": "node-db-a",
+      "type": "serviceNode",
+      "position": {
+        "x": 275,
+        "y": 445
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Database servers",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Multi-AZ primary"
+      }
+    },
+    {
+      "id": "node-db-b",
+      "type": "serviceNode",
+      "position": {
+        "x": 645,
+        "y": 445
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Database servers",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "AZ-B",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Multi-AZ synchronous standby"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-igw-alb",
+      "source": "node-igw",
+      "target": "node-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "edge-alb-web-a",
+      "source": "node-alb",
+      "target": "node-web-a",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "edge-alb-web-b",
+      "source": "node-alb",
+      "target": "node-web-b",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "edge-web-a-db-a",
+      "source": "node-web-a",
+      "target": "node-db-a",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "edge-web-b-db-a",
+      "source": "node-web-b",
+      "target": "node-db-a",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "edge-db-a-db-b",
+      "source": "node-db-a",
+      "target": "node-db-b",
+      "type": "custom",
+      "data": {
+        "protocol": "Replication",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "edge-db-a-s3-gateway",
+      "source": "node-db-a",
+      "target": "node-s3-gateway",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 5,
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "edge-s3-gateway-s3",
+      "source": "node-s3-gateway",
+      "target": "node-s3",
+      "type": "custom",
+      "data": {
+        "protocol": "S3 API",
+        "stepNumber": 6,
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 3000
+      }
+    }
+  ]
+}

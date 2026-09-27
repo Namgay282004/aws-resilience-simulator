@@ -17,7 +17,9 @@ export const dataTierInteractionAdapter = (ctx: AdapterContext): AdapterSignal =
   const cacheTarget = downstreamNodes.find(n => n.data.serviceId === 'elasticache');
   const queueTarget = downstreamNodes.find(n => n.data.serviceId === 'sqs');
 
-  if (dbTarget) {
+  if (ctx.orderedConnections && downstreamNodes[0]?.id !== dbTarget?.id && downstreamNodes[0]?.id !== queueTarget?.id) return CONTINUE;
+
+  if (dbTarget && (!ctx.orderedConnections || downstreamNodes[0]?.id === dbTarget.id)) {
     const dbEdgeProtocol = outgoingEdges.find(e => e.target === dbTarget.id)?.data?.protocol || 'SQL';
     if (pushFirewallBlockIfAny(node, dbTarget, dbEdgeProtocol)) {
       return TERMINATE;

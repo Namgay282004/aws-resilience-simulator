@@ -15,6 +15,7 @@ export const ServiceNode = memo((props: any) => {
     iconName: nodeData.serviceId
   };
 
+  const asgInstance = nodeData.customConfig?.asgInstance;
   const isFailed = nodeData.health === 'failed';
   const isDegraded = nodeData.health === 'degraded';
   const isSimActive = nodeData.isSimulating;
@@ -34,6 +35,9 @@ export const ServiceNode = memo((props: any) => {
 
   return (
     <div className="flex flex-col items-center justify-center p-1 select-none group min-w-[100px] max-w-[140px] text-center">
+      {nodeData.customConfig?.asgAlarm && <span className="text-[10px] bg-amber-100 text-amber-900 px-2 rounded">{nodeData.customConfig.asgAlarm.state}</span>}
+      {nodeData.customConfig?.asgRuntime && <span className="text-[10px] bg-blue-100 text-blue-900 px-2 rounded">Desired: {nodeData.customConfig.asgRuntime.desired}</span>}
+      {asgInstance && <span className={`text-[10px] rounded px-2 py-0.5 mb-1 ${asgInstance.state === 'InService' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 motion-safe:animate-pulse'}`}>{asgInstance.state}</span>}
       {/* Target Handles (Left & Top) */}
       <Handle
         type="target"

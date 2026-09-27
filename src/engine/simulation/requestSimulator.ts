@@ -1,3 +1,5 @@
+import { orderConnections, orderTargets, hasStepNumber } from './connectionOrder.ts';
+import { checkConnection } from '../architecture/connectionContracts.ts';
 import { evaluateLiveRoute } from '../network/liveRouting.ts';
 import { validateNetworkIdentities } from '../architecture/networkIdentity.ts';
 import { deriveSubnetForNode } from '../layout/containment.ts';
@@ -24,7 +26,7 @@ export function runSimulation(
   nodes: Node<ServiceNodeData>[],
   edges: Edge<ConnectionData>[],
   scenario: SimulationScenario,
-  options: { enforceIam?: boolean } = {}
+  options: { enforceIam?: boolean; legacyCapacity?: boolean } = {}
 ): SimulationResult {
   const identityIssues = validateNetworkIdentities(nodes);
   if (identityIssues.length) return {
@@ -235,11 +237,19 @@ export function runSimulation(
     // and the downstream service nodes they resolve to (boundary containers excluded) - computed
     // once per hop, before running the pipeline, since several adapters need them and none of
     // the adapters that run earlier in the pipeline depend on or mutate them.
-    const sourceEdges = edges.filter(e => e.source === currentNode!.id && (e.data as any)?.signalType !== 'outbound_response');
+    const sourceEdges = orderConnections(edges.filter(e => e.source === currentNode!.id && (e.data as any)?.signalType !== 'outbound_response'));
     const outgoingEdges = sourceEdges.filter(e => carriesRequest(e.data));
     const dependencyEdges = sourceEdges.filter(e => isDependencyCall(e.data));
+    const invalid = [...outgoingEdges, ...dependencyEdges.filter(edge => nodes.find(n => n.id === edge.target)?.data.serviceId === 'dynamodb')].map(edge => ({ edge, result: checkConnection(currentNode, nodes.find(n => n.id === edge.target), edge.data) })).find(item => item.result.status !== 'valid');
+    if (invalid && options.enforceIam) {
+      trace.pushStep({ sourceNodeId: currentNode.id, targetNodeId: invalid.edge.target,
+        sourceNodeName: currentNode.data.label, targetNodeName: nodes.find(n => n.id === invalid.edge.target)?.data.label ?? invalid.edge.target,
+        protocol: invalid.edge.data?.protocol ?? 'TCP', action: 'Invalid connection', status: 'failed',
+        explanation: invalid.result.reason, targetHealth: 'failed', latencyMs: 0 });
+      trace.fail(invalid.result.status === 'unknown' ? 501 : 400, invalid.result.reason); break;
+    }
     const downstreamNodeIds = outgoingEdges.map(e => e.target);
-    const downstreamNodes = nodes.filter(n => downstreamNodeIds.includes(n.id) && n.type !== 'boundaryNode' && (n.data as any)?.serviceId);
+    const downstreamNodes = orderTargets(nodes.filter(n => downstreamNodeIds.includes(n.id) && n.type !== 'boundaryNode' && (n.data as any)?.serviceId), outgoingEdges);
 
     const ctx: AdapterContext = {
       trace,
@@ -247,10 +257,13 @@ export function runSimulation(
       node: currentNode,
       outgoingEdges,
       dependencyEdges,
+      allEdges: orderConnections(edges),
+      orderedConnections: outgoingEdges.some(hasStepNumber),
       downstreamNodes,
       visited,
       scenario,
       enforceIam: options.enforceIam,
+      legacyCapacity: options.legacyCapacity,
       pushFirewallBlockIfAny
     };
 
@@ -358,6 +371,7 @@ export function runSimulation(
 
   return {
     scenario,
+    serviceStates: trace.serviceStates,
     steps: trace.steps,
     success: trace.overallSuccess,
     totalLatencyMs: trace.currentTimestamp + (trace.overallSuccess ? 15 : 0),

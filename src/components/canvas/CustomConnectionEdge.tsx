@@ -2,6 +2,19 @@ import React, { memo, useState } from 'react';
 import { EdgeProps, getBezierPath, getStraightPath, getSmoothStepPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react';
 import { ConnectionData, FlowStatus } from '../../types/index.ts';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
+import { relationshipKind, RelationshipKind } from '../../engine/architecture/relationships.ts';
+
+/** Static dash pattern per "Connection meaning" (RelationshipKind) - lets a line read as
+ *  request/dependency/manages/etc. at rest, independent of simulation status. Status-driven
+ *  overrides below (active/failed/pending) take priority over this while a request is running,
+ *  same as they already did for color and width - this only fills in the otherwise-solid default. */
+const RELATIONSHIP_DASH: Record<RelationshipKind, string | undefined> = {
+  request: undefined, // solid - direct request/response traffic
+  dependency: '6,3', // dashed - calls another service it depends on
+  manages: '2,3', // dotted - control-plane "manages/configures" edge
+  'route-association': '8,2,2,2', // dash-dot - route table association
+  'target-registration': '1,4' // fine dots - load balancer target registration
+};
 
 /** How many simultaneous traveling packets an "active" hop renders, by traffic level - the load
  *  a student picks in Send Request should be visually countable, not just a backend number. Real
@@ -145,7 +158,9 @@ export const CustomConnectionEdge = memo(({
     ? '#DC2626'
     : '#475569';
   let strokeWidth = selected ? 2.5 : 1.5;
-  let strokeDasharray: string | undefined = edgeData.hasMissingReturnBlock ? '6,4' : undefined;
+  let strokeDasharray: string | undefined = edgeData.hasMissingReturnBlock
+    ? '6,4'
+    : RELATIONSHIP_DASH[relationshipKind(edgeData)];
   let animation: string | undefined = undefined;
   let opacity = 1;
 

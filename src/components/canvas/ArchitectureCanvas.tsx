@@ -1,3 +1,4 @@
+import { ReferenceLibrary } from '../references/ReferenceLibrary.tsx';
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import {
   ReactFlow,
@@ -55,7 +56,8 @@ export const ArchitectureCanvas: React.FC = () => {
     simulationResult,
     showNaclSideColumn,
     setShowNaclSideColumn,
-    hasCustomNacl
+    hasCustomNacl,
+    hasMissingReturnNacl
   } = useArchitecture();
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -240,17 +242,9 @@ export const ArchitectureCanvas: React.FC = () => {
         />
 
 
-        {/* Official AWS Cloud Top-Left Header Watermark & Task Flow Toggle */}
+        {/* Canvas Task Flow Toggle */}
         <Panel position="top-left" className="m-3 flex items-center gap-2">
-          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-white/90 border border-slate-300 shadow-sm backdrop-blur-sm pointer-events-none">
-            <svg width="22" height="14" viewBox="0 0 40 24" fill="none">
-              <path d="M12 20C6 20 1 15 1 9C1 4.5 5 1 10 1C11.5 1 13 1.5 14 2C16 0.5 18.5 0 21 0C27 0 32 4.5 32 10.5C35 11 38 13.5 38 17C38 21 34.5 24 30 24H12C8 24 4 21 4 17" stroke="#232F3E" strokeWidth="2.5" />
-            </svg>
-            <span className="text-xs font-bold text-slate-800 tracking-tight">
-              AWS Cloud
-            </span>
-          </div>
-
+          <ReferenceLibrary />
           {/* Quick Flow of Task Toggle */}
           <button
             onClick={toggleTaskFlow}
@@ -284,8 +278,10 @@ export const ArchitectureCanvas: React.FC = () => {
           )}
         </Panel>
 
-        {/* Architectural Title Banner (from Problem 3.1) */}
-        {hasCustomNacl && (
+        {/* Architectural Title Banner (from Problem 3.1) - only for the actual missing-return-rule
+            condition Problem 3.1 diagnoses, not for every custom NACL (e.g. the "Enable NACL rule
+            set" preset, which defaults to a complete rule set with no missing return). */}
+        {hasMissingReturnNacl && (
           <Panel position="top-center" className="m-3">
             <div className="px-4 py-1.5 rounded-xl bg-white/95 border border-slate-300 shadow-sm backdrop-blur-sm pointer-events-none text-center">
               <span className="text-xs font-bold text-slate-800 tracking-wide font-sans">

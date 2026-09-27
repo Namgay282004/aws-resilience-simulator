@@ -8,9 +8,10 @@ import { validateRules } from './rules.ts';
 import { validateDependencies } from './dependencies.ts';
 import { validateServiceConfigurations } from './serviceConfig.ts';
 import { validateIam } from './iam.ts';
+import { validateProtocolCompatibility } from './protocol.ts';
 
 export type { Finding, FindingSeverity, FindingCategory } from '../findings.ts';
-export { validateCidrs, validateNetwork, validateRules, validateDependencies, validateServiceConfigurations, validateIam };
+export { validateCidrs, validateNetwork, validateRules, validateDependencies, validateServiceConfigurations, validateIam, validateProtocolCompatibility };
 
 /**
  * Whole-canvas structural configuration validity - "is this legal, well-formed AWS config?"
@@ -29,6 +30,7 @@ export function validateArchitecture(
     ...validateRules(nodes),
     ...validateDependencies(nodes, edges),
     ...validateServiceConfigurations(nodes),
-    ...validateIam(nodes, edges)
+    ...validateIam(nodes, edges),
+    ...validateProtocolCompatibility(nodes, edges)
   ];
 }

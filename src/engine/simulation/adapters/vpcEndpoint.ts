@@ -31,7 +31,7 @@ export const vpcEndpointAdapter = (ctx: AdapterContext): AdapterSignal => {
   const endpointTarget = downstreamNodes.find(n => ENDPOINT_SERVICE_IDS.includes(n.data.serviceId));
   const sourceIsPrivate = node.data.subnet === 'private' || node.data.subnet === 'isolated';
 
-  if (!endpointTarget || !sourceIsPrivate) {
+  if (!endpointTarget || !sourceIsPrivate || (ctx.orderedConnections && endpointTarget.id !== downstreamNodes[0]?.id)) {
     return CONTINUE;
   }
 

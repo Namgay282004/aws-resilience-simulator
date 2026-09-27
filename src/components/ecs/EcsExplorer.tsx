@@ -5,6 +5,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type { ServiceNodeData } from '../../types/index.ts';
 import { ecsConfiguration } from '../../engine/service/models/ecs.ts';
 import { EcsTopology, type EcsSection } from './EcsTopology.tsx';
+import { EcsConnectivityMap } from './EcsConnectivityMap.tsx';
 import { EcsConfigurationPanel } from '../inspector/EcsConfigurationPanel.tsx';
 
 interface ContainerDefinition { name: string; image: string; port: string; essential: boolean }
@@ -83,6 +84,7 @@ export function EcsExplorer({ nodeId, nodes, edges, onUpdate, onClose }: {
           <EcsTopology services={services} originId={nodeId} selectedId={node.id} section={section} containerIndex={containerIndex} onSelect={(id, part, index) => { setServiceId(id); setSection(part); setContainerIndex(index ?? null); }} />
         </main>
         <aside aria-label="ECS component details" className="border-t lg:border-t-0 lg:border-l border-slate-200 p-5 space-y-5 lg:overflow-y-auto">
+          <EcsConnectivityMap services={services} nodes={nodes} edges={edges} clusterName={originWorkspace.clusterName || 'unnamed'} onSelectService={id => { setServiceId(id); setSection('network'); setContainerIndex(null); }} />
           <div className="flex items-start justify-between gap-2"><div><p className="text-xs text-circuit-700 font-semibold mb-1">Component details</p><h3 className="text-lg font-semibold">{section ? titles[section] : 'Explore your cluster'}</h3></div>{section && <button className={button} onClick={() => setSection(null)} aria-label="Close component details"><X size={16} /></button>}</div>
           {!section && <div className="py-8 text-sm text-slate-600 space-y-3"><MousePointer2 size={28} className="text-circuit-700" aria-hidden="true" /><p>Select a cluster, service, task, or container in the diagram.</p><p>Its configuration opens here, keeping the architecture in view.</p></div>}
           {section && <p className="text-xs text-slate-500 break-words">{workspace.clusterName || 'Unnamed cluster'} / {workspace.serviceName || data.label}{section === 'container' ? ` / ${containers[containerIndex ?? -1]?.name || 'Container'}` : ''}</p>}

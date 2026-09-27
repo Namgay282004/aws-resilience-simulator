@@ -10,7 +10,11 @@
     "test:unit": "node --experimental-strip-types --test test/*.test.ts",
     "test:conformance": "node --experimental-strip-types --test tests/aws-conformance/**/*.test.ts",
     "test:ui": "node --import ./test/support/register.mjs --test test/ui/*.test.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "references:sync": "node scripts/generate-references.mjs",
+    "predev": "npm run references:sync",
+    "prebuild": "npm run references:sync",
+    "pretest": "npm run references:sync"
   },
   "dependencies": {
     "@xyflow/react": "^12.4.4",

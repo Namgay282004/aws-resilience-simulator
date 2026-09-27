@@ -33,3 +33,13 @@ test('Recovery save verifies exact data, preserves normal draft slot and surface
   assert.throws(() => saveUpdateRecovery({ setItem: () => { throw new Error('quota'); }, getItem: () => null }, fixture), /quota/);
   assert.throws(() => saveUpdateRecovery({ setItem: () => {}, getItem: () => null }, fixture), /verify/);
 });
+
+test('Named drafts preserve their name and produce safe JSON filenames', async () => {
+  const { draftFilename } = await import('../src/engine/persistence/draft.ts');
+  const state = { ...parseDraft(fixture), draftName: 'Lab 3 networking' };
+  assert.equal(parseDraft(serializeDraft(state)).draftName, 'Lab 3 networking');
+  assert.equal(draftFilename(state.draftName), 'Lab 3 networking.json');
+  assert.equal(draftFilename('Lab.json'), 'Lab.json');
+  assert.equal(draftFilename('  '), 'Untitled draft.json');
+  assert.equal(draftFilename('Lab/3:network'), 'Lab-3-network.json');
+});

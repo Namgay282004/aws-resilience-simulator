@@ -21,6 +21,7 @@ export async function load(url, context, nextLoad) {
       loader,
       format: 'esm',
       target: 'es2022',
+      supported: { 'import-attributes': true },
       sourcefile: filePath
     });
     return { format: 'module', source: result.code, shortCircuit: true };

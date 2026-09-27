@@ -1,0 +1,515 @@
+{
+  "id": "aws-data-transfer-hub",
+  "name": "AWS Data Transfer Hub & Serverless Workflow",
+  "category": "Serverless / Microservice",
+  "difficulty": "Intermediate",
+  "description": "Official AWS architecture featuring Data Transfer Hub UI, Cognito auth, AppSync GraphQL, Lambda, DynamoDB, Step Functions, and Fargate across Customer and Managed accounts.",
+  "learningOutcome": "Demonstrates end-to-end multi-account serverless workflow orchestration, token authentication, and containerized data replication.",
+  "nodes": [
+    {
+      "id": "box-customer-account",
+      "type": "boundaryNode",
+      "position": {
+        "x": 20,
+        "y": 30
+      },
+      "data": {
+        "label": "Customer's AWS Account",
+        "boundaryType": "account",
+        "width": 720,
+        "height": 540
+      },
+      "draggable": false,
+      "selectable": false,
+      "zIndex": -1
+    },
+    {
+      "id": "box-auth",
+      "type": "boundaryNode",
+      "position": {
+        "x": 80,
+        "y": 70
+      },
+      "data": {
+        "label": "Authentication",
+        "boundaryType": "auth",
+        "width": 200,
+        "height": 110
+      },
+      "draggable": false,
+      "selectable": false,
+      "zIndex": 0
+    },
+    {
+      "id": "box-step-functions",
+      "type": "boundaryNode",
+      "position": {
+        "x": 500,
+        "y": 60
+      },
+      "data": {
+        "label": "AWS Step Functions workflow",
+        "boundaryType": "workflow",
+        "width": 210,
+        "height": 300
+      },
+      "draggable": false,
+      "selectable": false,
+      "zIndex": 0
+    },
+    {
+      "id": "box-managed-account",
+      "type": "boundaryNode",
+      "position": {
+        "x": 770,
+        "y": 30
+      },
+      "data": {
+        "label": "AWS Managed Account",
+        "boundaryType": "account",
+        "width": 290,
+        "height": 540
+      },
+      "draggable": false,
+      "selectable": false,
+      "zIndex": -1
+    },
+    {
+      "id": "box-fargate-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 500,
+        "y": 390
+      },
+      "data": {
+        "label": "VPC",
+        "boundaryType": "vpc",
+        "width": 220,
+        "height": 140,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 220,
+        "height": 140
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -1
+    },
+    {
+      "id": "box-fargate-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 520,
+        "y": 410
+      },
+      "data": {
+        "label": "Private subnet",
+        "boundaryType": "private_subnet",
+        "width": 180,
+        "height": 100
+      },
+      "style": {
+        "width": 180,
+        "height": 100
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "node-user",
+      "type": "serviceNode",
+      "position": {
+        "x": 45,
+        "y": 450
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "User",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-ui",
+      "type": "serviceNode",
+      "position": {
+        "x": 45,
+        "y": 320
+      },
+      "data": {
+        "serviceId": "client_ui",
+        "label": "Data Transfer Hub UI",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-cognito",
+      "type": "serviceNode",
+      "position": {
+        "x": 95,
+        "y": 105
+      },
+      "data": {
+        "serviceId": "cognito",
+        "label": "Amazon Cognito",
+        "category": "Security",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-openid",
+      "type": "serviceNode",
+      "position": {
+        "x": 200,
+        "y": 105
+      },
+      "data": {
+        "serviceId": "openid",
+        "label": "OpenID Connect",
+        "category": "Security",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-cloudfront",
+      "type": "serviceNode",
+      "position": {
+        "x": 200,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "cloudfront",
+        "label": "Amazon CloudFront",
+        "category": "DNS / Edge",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-s3-client",
+      "type": "serviceNode",
+      "position": {
+        "x": 340,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Amazon S3 (Web)",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-appsync",
+      "type": "serviceNode",
+      "position": {
+        "x": 240,
+        "y": 240
+      },
+      "data": {
+        "serviceId": "appsync",
+        "label": "AWS AppSync",
+        "category": "Load Balancing",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-lambda",
+      "type": "serviceNode",
+      "position": {
+        "x": 370,
+        "y": 240
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "AWS Lambda",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 5,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-dynamodb",
+      "type": "serviceNode",
+      "position": {
+        "x": 370,
+        "y": 80
+      },
+      "data": {
+        "serviceId": "dynamodb",
+        "label": "Amazon DynamoDB",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-step-lambda",
+      "type": "serviceNode",
+      "position": {
+        "x": 550,
+        "y": 120
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "AWS Lambda (Workflow)",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 2,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-cloudformation",
+      "type": "serviceNode",
+      "position": {
+        "x": 550,
+        "y": 240
+      },
+      "data": {
+        "serviceId": "cloudformation",
+        "label": "AWS CloudFormation",
+        "category": "Monitoring",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-fargate",
+      "type": "serviceNode",
+      "position": {
+        "x": 550,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "fargate",
+        "label": "AWS Fargate",
+        "category": "Containers",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 2,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-s3-managed",
+      "type": "serviceNode",
+      "position": {
+        "x": 800,
+        "y": 190
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Amazon S3 (Template)",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-ecr-managed",
+      "type": "serviceNode",
+      "position": {
+        "x": 800,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "ecr",
+        "label": "Amazon ECR",
+        "category": "Containers",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-ui-cf",
+      "source": "node-ui",
+      "target": "node-cloudfront",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "cached",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-cf-s3",
+      "source": "node-cloudfront",
+      "target": "node-s3-client",
+      "type": "custom",
+      "data": {
+        "protocol": "Object access",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "e-ui-appsync",
+      "source": "node-ui",
+      "target": "node-appsync",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-ui-auth",
+      "source": "node-ui",
+      "target": "node-cognito",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "e-appsync-lambda",
+      "source": "node-appsync",
+      "target": "node-lambda",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "stepNumber": 4,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2500
+      }
+    },
+    {
+      "id": "e-lambda-dynamo",
+      "source": "node-lambda",
+      "target": "node-dynamodb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 8,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "e-lambda-step",
+      "source": "node-lambda",
+      "target": "node-step-lambda",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "stepNumber": 5,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "e-step-cfn",
+      "source": "node-step-lambda",
+      "target": "node-cloudformation",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 4000
+      }
+    },
+    {
+      "id": "e-cfn-fargate",
+      "source": "node-cloudformation",
+      "target": "node-fargate",
+      "type": "custom",
+      "data": {
+        "protocol": "Event",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 4000
+      }
+    },
+    {
+      "id": "e-managed-s3",
+      "source": "node-s3-managed",
+      "target": "node-cloudformation",
+      "type": "custom",
+      "data": {
+        "protocol": "Object access",
+        "stepNumber": 6,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-managed-ecr",
+      "source": "node-ecr-managed",
+      "target": "node-fargate",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 7,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000
+      }
+    }
+  ]
+}

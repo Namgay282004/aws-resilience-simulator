@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useId } from 'react';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 import {
   Clock,
@@ -16,17 +16,19 @@ export const EventTimeline: React.FC = () => {
     setSelectedNodeId
   } = useArchitecture();
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const timelineId = useId();
   const timelineContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll timeline to active step
   useEffect(() => {
-    if (activeStepIndex !== null && timelineContainerRef.current) {
+    if (!isCollapsed && activeStepIndex !== null && timelineContainerRef.current) {
       const activeEl = timelineContainerRef.current.children[activeStepIndex] as HTMLElement;
       if (activeEl) {
         activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
     }
-  }, [activeStepIndex]);
+  }, [activeStepIndex, isCollapsed]);
 
   if (!simulationResult || simulationResult.steps.length === 0) {
     return null;
@@ -35,7 +37,7 @@ export const EventTimeline: React.FC = () => {
   const activeStep = activeStepIndex !== null ? simulationResult.steps[activeStepIndex] : null;
 
   return (
-    <div className="bg-white border-t border-slate-200 flex flex-col max-h-52 select-none z-10 shadow-xs">
+    <div className="bg-white border-t border-slate-200 flex flex-col shrink-0 max-h-52 select-none z-10 shadow-xs">
       {/* Top Banner / Active Event Detail */}
       <div className="px-6 py-2 border-b border-slate-100 bg-white flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -44,23 +46,36 @@ export const EventTimeline: React.FC = () => {
             Request Flow Timeline
           </span>
           <span className="text-[10px] text-slate-400 font-mono">
-            (Click step to scrub)
+            {isCollapsed ? `${simulationResult.steps.length} steps` : '(Click step to scrub)'}
           </span>
         </div>
 
-        {activeStep && (
+        {!isCollapsed && activeStep && (
           <div className="text-xs text-slate-600 font-mono flex items-center gap-2">
             <span className="text-slate-900 font-semibold">{activeStep.targetNodeName}</span>
             <span className="text-slate-400">:</span>
             <span className="text-slate-700 truncate max-w-md">{activeStep.action}</span>
           </div>
         )}
+        <button
+          type="button"
+          aria-expanded={!isCollapsed}
+          aria-controls={timelineId}
+          className="ml-3 shrink-0 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-circuit-600"
+          onClick={() => {
+            setHoveredStepIndex(null);
+            setIsCollapsed(value => !value);
+          }}
+        >
+          {isCollapsed ? 'Expand timeline' : 'Minimize timeline'}
+        </button>
       </div>
 
       {/* Timeline Steps Horizontal Scroll */}
       <div
+        id={timelineId}
         ref={timelineContainerRef}
-        className="flex-1 overflow-x-auto p-3 flex items-stretch gap-3 custom-scrollbar bg-white"
+        className={`${isCollapsed ? 'hidden' : 'flex'} flex-1 overflow-x-auto p-3 items-stretch gap-3 custom-scrollbar bg-white`}
       >
         {simulationResult.steps.map((step, idx) => {
           const isActive = activeStepIndex === idx;

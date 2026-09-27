@@ -40,9 +40,9 @@ export function authorizeApplicationHop(source: Node<ServiceNodeData>, target: N
     const role = source.data.iamRole;
     const rolePrincipal: Principal = {
       id: role.id, kind: 'role', accountId: '000000000000',
-      trustPolicy: role.trustPolicy, identityPolicies: role.identityPolicies || [], permissionsBoundary: role.permissionsBoundary
+      trustPolicy: source.data.serviceId === 'ec2' && role.trustPolicy ? { ...role.trustPolicy, statements: role.trustPolicy.statements.map(statement => ({ ...statement, principals: statement.principals?.map(principal => principal === 'ec2' ? 'ec2.amazonaws.com' : principal) })) } : role.trustPolicy, identityPolicies: role.identityPolicies || [], permissionsBoundary: role.permissionsBoundary
     };
-    const callerPrincipal: Principal = { id: source.data.serviceId === 'ecs' ? 'ecs-tasks.amazonaws.com' : source.data.serviceId, kind: 'service', accountId: '000000000000', identityPolicies: [] };
+    const callerPrincipal: Principal = { id: source.data.serviceId === 'ecs' ? 'ecs-tasks.amazonaws.com' : source.data.serviceId === 'ec2' ? 'ec2.amazonaws.com' : source.data.serviceId, kind: 'service', accountId: '000000000000', identityPolicies: [] };
     const assumeResult = assumeRole(callerPrincipal, rolePrincipal);
 
     if (!assumeResult.allowed) {
@@ -59,10 +59,12 @@ export function authorizeApplicationHop(source: Node<ServiceNodeData>, target: N
         metadata: {}
       });
     } else {
+      let resourceArn = String(target.data.customConfig?.resourceArn || `arn:aws:${target.data.serviceId}:::${target.id}`);
+      if (source.data.serviceId === 'ec2' && target.data.serviceId === 's3' && ['s3:GetObject', 's3:PutObject'].includes(iamAction) && !resourceArn.includes('/')) resourceArn += '/simulated-object';
       const decision = evaluateAuthorization({
         principal: assumeResult.sessionPrincipal!,
         action: iamAction,
-        resource: { arn: String(target.data.customConfig?.resourceArn || `arn:aws:${target.data.serviceId}:::${target.id}`), accountId: '000000000000' }
+        resource: { arn: resourceArn, accountId: '000000000000' }
       });
       entries.push({
         order: 1,

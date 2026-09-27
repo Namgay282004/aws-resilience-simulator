@@ -71,17 +71,25 @@ export function EcsTopology({ services, originId, selectedId, section, container
               </div>
               {running === 0 && <div className="p-5 border border-dashed border-slate-300 rounded text-center"><Box size={24} className="mx-auto mb-2 text-slate-400" aria-hidden="true" /><p className="text-sm font-medium">No observed running tasks</p><p className="text-xs text-slate-500 mt-1">Desired count: {desired}. Configure the service snapshot to change observed tasks.</p></div>}
               {running > 6 && <button onClick={() => onSelect(service.id, 'tasks')} className={`text-sm text-circuit-700 underline min-h-11 ${focus}`}>+ {running - 6} more tasks · showing 6 of {running}</button>}
-              <div className="border-t border-dashed border-slate-300 pt-3">
-                <button onClick={() => onSelect(service.id, 'compute')} aria-pressed={selected(service.id, 'compute')} className={`w-full p-3 rounded text-left border ${selected(service.id, 'compute') ? 'border-circuit-600 bg-circuit-50' : fargate ? 'border-sky-200 bg-sky-50' : 'border-orange-200 bg-orange-50'} ${focus}`}>
-                  <span className="flex items-center gap-2 text-sm font-semibold">{fargate ? <Cloud size={20} aria-hidden="true" /> : <Server size={20} aria-hidden="true" />}{fargate ? 'Fargate · AWS-managed compute' : 'EC2 · container instances'}</span>
-                  <span className="block text-xs text-slate-600 mt-1">{fargate ? 'Managed task compute · no customer-managed hosts' : `${workspace.instanceCount || 'Unspecified'} hosts · ${workspace.instanceType || 'instance type not configured'} · placement not modeled`}</span>
-                </button>
-              </div>
+              <p className="text-xs text-slate-600">Service manages these tasks · tasks run on {fargate ? 'Fargate managed compute' : 'cluster EC2 capacity'}.</p>
               <button onClick={() => onSelect(service.id, 'network')} aria-pressed={selected(service.id, 'network')} className={`w-full text-left min-h-11 px-3 py-2 border rounded text-xs flex gap-2 items-center hover:bg-slate-50 ${selected(service.id, 'network') ? 'border-circuit-600 bg-circuit-50' : 'border-slate-200'} ${focus}`}><Network size={17} aria-hidden="true" />{config.networkMode || 'awsvpc'} task networking · {data.subnet} · {(data.securityGroupIds ?? []).length} security groups</button>
             </div>
           </section>;
         })}
       </div>
+      <section aria-label="Cluster compute capacity" className="m-3 sm:m-5 p-4 border-2 border-orange-200 rounded-lg bg-orange-50/40 space-y-3">
+        <h3 className="font-semibold flex items-center gap-2"><Server size={20} />Cluster compute capacity</h3>
+        <p className="text-xs text-slate-600">EC2 hosts can run tasks from multiple services. Services manage tasks; they do not contain or run inside EC2 instances. Capacity provider and ASG membership are not configured in this snapshot.</p>
+        {services.map(service => {
+          const workspace: EcsWorkspace = service.data.customConfig?.ecsWorkspace ?? {};
+          const fargate = ecsConfiguration(service.data).launchType === 'FARGATE';
+          return <button key={service.id} onClick={() => onSelect(service.id, 'compute')} aria-pressed={selected(service.id, 'compute')} className={`w-full p-3 rounded text-left border bg-white ${selected(service.id, 'compute') ? 'border-circuit-600' : 'border-slate-300'} ${focus}`}>
+            <span className="flex items-center gap-2 text-sm font-semibold">{fargate ? <Cloud size={20} /> : <Server size={20} />}{workspace.serviceName || service.data.label} · compute reference</span>
+            <span className="block text-xs text-slate-600 mt-1">{fargate ? 'Fargate · no customer-managed EC2 hosts' : `Saved metadata: ${workspace.instanceCount || 'unspecified'} hosts · ${workspace.instanceType || 'unspecified instance type'}`}</span>
+          </button>;
+        })}
+        <p className="text-xs text-slate-600">Per-service metadata is preserved, not summed into a shared host count. Host identities and task placement are not modeled.</p>
+      </section>
     </section>
     <p className="text-xs text-slate-500">Task boxes illustrate the observed count and saved container blueprint. They are not live task IDs or verified running container instances.</p>
   </div>;

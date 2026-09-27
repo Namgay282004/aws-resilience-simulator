@@ -1,0 +1,391 @@
+{
+  "id": "nacl-custom-stateless-timeout",
+  "name": "Problem 3.1: Cause of Connection Timeout due to Custom NACLs",
+  "category": "Networking & VPC Design",
+  "difficulty": "Intermediate",
+  "description": "Investigates why connections time out when using custom Network ACLs due to their stateless nature. In this architecture, Web Server in Public Subnet (10.0.1.0/24) initiates a MySQL connection to Database in Private Subnet (10.0.2.0/24). The forward request is allowed, but return traffic is blocked because the custom NACL is missing an inbound rule for return ephemeral ports (1024-65535).",
+  "learningOutcome": "Key Insight: Connections time out because NACLs are stateless. A custom NACL must explicitly allow inbound ephemeral ports (e.g., 1024-65535) for the return traffic from the database. Even with \"Allow All\" outbound, the traffic is blocked upon return to the public subnet.",
+  "nodes": [
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 40,
+        "y": 30
+      },
+      "data": {
+        "label": "VPC: 10.0.0.0/16",
+        "boundaryType": "vpc",
+        "width": 760,
+        "height": 480,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 760,
+        "height": 480
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-public-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 70,
+        "y": 65
+      },
+      "data": {
+        "label": "Public Subnet: 10.0.1.0/24",
+        "boundaryType": "public_subnet",
+        "width": 700,
+        "height": 190,
+        "cidr": "10.0.1.0/24",
+        "customNacl": {
+          "naclName": "Public Subnet NACL: Custom",
+          "isCustom": true,
+          "inboundRules": [
+            {
+              "ruleNumber": 90,
+              "type": "HTTP",
+              "protocol": "TCP",
+              "portRange": "80",
+              "cidr": "0.0.0.0/0",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 100,
+              "type": "TCP 3306",
+              "protocol": "TCP",
+              "portRange": "3306",
+              "cidr": "10.0.2.0/24",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 110,
+              "type": "Ephemeral Ports",
+              "protocol": "TCP",
+              "portRange": "1024-65535",
+              "cidr": "10.0.2.0/24",
+              "action": "ALLOW",
+              "isStatelessReturn": true,
+              "isMissingReturn": true
+            },
+            {
+              "ruleNumber": 32767,
+              "type": "All Traffic",
+              "protocol": "All",
+              "portRange": "All",
+              "cidr": "0.0.0.0/0",
+              "action": "DENY"
+            }
+          ],
+          "outboundRules": [
+            {
+              "ruleNumber": 100,
+              "type": "TCP 3306",
+              "protocol": "TCP",
+              "portRange": "3306",
+              "cidr": "10.0.2.0/24",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 110,
+              "type": "All Traffic",
+              "protocol": "All",
+              "portRange": "All",
+              "cidr": "0.0.0.0/0",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 32767,
+              "type": "All Traffic",
+              "protocol": "All",
+              "portRange": "All",
+              "cidr": "0.0.0.0/0",
+              "action": "DENY"
+            }
+          ]
+        }
+      },
+      "style": {
+        "width": 700,
+        "height": 190
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-web-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 230,
+        "y": 95
+      },
+      "data": {
+        "label": "Web Server SG",
+        "boundaryType": "security_group",
+        "width": 170,
+        "height": 120,
+        "allowedProtocols": [
+          "HTTP",
+          "SQL"
+        ]
+      },
+      "style": {
+        "width": 170,
+        "height": 120
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 1
+    },
+    {
+      "id": "box-private-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 70,
+        "y": 280
+      },
+      "data": {
+        "label": "Private Subnet: 10.0.2.0/24",
+        "boundaryType": "private_subnet",
+        "width": 700,
+        "height": 200,
+        "cidr": "10.0.2.0/24",
+        "customNacl": {
+          "naclName": "Private Subnet NACL: Custom",
+          "isCustom": true,
+          "inboundRules": [
+            {
+              "ruleNumber": 100,
+              "type": "TCP 3306",
+              "protocol": "TCP",
+              "portRange": "3306",
+              "cidr": "10.0.1.0/24",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 110,
+              "type": "Ephemeral Ports",
+              "protocol": "TCP",
+              "portRange": "1024-65535",
+              "cidr": "0.0.0.0/0",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 32767,
+              "type": "All Traffic",
+              "protocol": "All",
+              "portRange": "All",
+              "cidr": "0.0.0.0/0",
+              "action": "DENY"
+            }
+          ],
+          "outboundRules": [
+            {
+              "ruleNumber": 100,
+              "type": "TCP 3306",
+              "protocol": "TCP",
+              "portRange": "3306",
+              "cidr": "10.0.1.0/24",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 110,
+              "type": "All Traffic",
+              "protocol": "All",
+              "portRange": "All",
+              "cidr": "0.0.0.0/0",
+              "action": "ALLOW"
+            },
+            {
+              "ruleNumber": 32767,
+              "type": "All Traffic",
+              "protocol": "All",
+              "portRange": "All",
+              "cidr": "0.0.0.0/0",
+              "action": "DENY"
+            }
+          ]
+        }
+      },
+      "style": {
+        "width": 700,
+        "height": 200
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-db-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 130,
+        "y": 320
+      },
+      "data": {
+        "label": "MySQL/Aurora SG",
+        "boundaryType": "security_group",
+        "width": 170,
+        "height": 120,
+        "allowedProtocols": [
+          "SQL"
+        ]
+      },
+      "style": {
+        "width": 170,
+        "height": 120
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 1
+    },
+    {
+      "id": "node-client",
+      "type": "serviceNode",
+      "position": {
+        "x": -170,
+        "y": 125
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Client / Ingress",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 90,
+        "y": 125
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-web-server",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 125
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Web Server",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "box-web-sg"
+        ],
+        "notes": "Web Server SG: Inbound HTTP 0.0.0.0/0 Allow; Outbound MySQL/Aurora 10.0.2.0/24 Allow."
+      }
+    },
+    {
+      "id": "node-database",
+      "type": "serviceNode",
+      "position": {
+        "x": 280,
+        "y": 345
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Database (Private Subnet)",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "box-db-sg"
+        ],
+        "notes": "MySQL/Aurora SG: Inbound 10.0.1.0/24 TCP 3306 Allow. Responds to client ephemeral ports (1024-65535)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-client-igw",
+      "source": "node-client",
+      "target": "node-igw",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500,
+        "signalType": "inbound_request"
+      }
+    },
+    {
+      "id": "e-igw-web",
+      "source": "node-igw",
+      "target": "node-web-server",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500,
+        "signalType": "inbound_request",
+        "signalLabel": "HTTP Inbound (0.0.0.0/0)"
+      }
+    },
+    {
+      "id": "e-web-db-inbound",
+      "source": "node-web-server",
+      "target": "node-database",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 3000,
+        "signalType": "inbound_request",
+        "signalLabel": "Connection Flow (Inbound Request)",
+        "curveOffset": -40
+      }
+    },
+    {
+      "id": "e-db-web-outbound",
+      "source": "node-database",
+      "target": "node-web-server",
+      "type": "custom",
+      "data": {
+        "protocol": "TCP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 30000,
+        "signalType": "outbound_response",
+        "hasMissingReturnBlock": true,
+        "signalLabel": "Connection Flow (Outbound Response - Blocked/Timed Out)",
+        "curveOffset": -40
+      }
+    }
+  ]
+}

@@ -206,3 +206,61 @@ test('11. A well-formed reference architecture has zero CRITICAL validation find
   const critical = findings.filter(f => f.severity === 'CRITICAL');
   assert.deepStrictEqual(critical, [], `expected no CRITICAL findings on a valid template, got: ${critical.map(f => f.problem).join(' | ')}`);
 });
+
+test('12. Protocol compatibility: a connection labeled with a protocol its target does not accept is flagged', () => {
+  const nodes = [service('node-app', 'ec2'), service('node-bucket', 's3', { category: 'Storage' })];
+  const edges = [edge('e-1', 'node-app', 'node-bucket', 'SQL')]; // S3 only models ['HTTPS', 'Object access']
+  const findings = validateArchitecture(nodes, edges);
+  const finding = findings.find(f => f.subcategory === 'protocol');
+  assert.ok(finding, 'expected a protocol-mismatch finding');
+  assert.strictEqual(finding!.category, 'validation');
+  assert.strictEqual(finding!.severity, 'MEDIUM');
+  assert.ok(finding!.problem.includes('SQL'));
+});
+
+test('13. Protocol compatibility: a protocol the target does accept is not flagged', () => {
+  const nodes = [service('node-app', 'ec2'), service('node-db', 'rds', { category: 'Databases' })];
+  const edges = [edge('e-1', 'node-app', 'node-db', 'SQL')]; // RDS models ['SQL']
+  const findings = validateArchitecture(nodes, edges);
+  assert.ok(!findings.some(f => f.subcategory === 'protocol'));
+});
+
+test('14. Protocol compatibility: a target with no catalog protocol claim is left unflagged, not guessed at', () => {
+  const nodes = [service('node-app', 'ec2'), service('node-other', 'some_unknown_service_id', { category: 'Compute' })];
+  const edges = [edge('e-1', 'node-app', 'node-other', 'gRPC')];
+  const findings = validateArchitecture(nodes, edges);
+  assert.ok(!findings.some(f => f.subcategory === 'protocol'));
+});
+
+test('15. Protocol compatibility: management/route-association/target-registration edges are exempt', () => {
+  const nodes = [service('node-alb', 'alb'), service('node-bucket', 's3', { category: 'Storage' })];
+  const edges = [{ ...edge('e-1', 'node-alb', 'node-bucket', 'SQL'), data: { ...edge('e-1', 'node-alb', 'node-bucket', 'SQL').data!, relationship: 'manages' as const } }];
+  const findings = validateArchitecture(nodes, edges);
+  assert.ok(!findings.some(f => f.subcategory === 'protocol'));
+});
+
+test('16b. Protocol compatibility: a deliberate free-text label outside ProtocolType (e.g. Multi-AZ "Replication") opts out', () => {
+  const nodes = [service('node-db-a', 'rds', { category: 'Databases' }), service('node-db-b', 'rds', { category: 'Databases' })];
+  const edges = [edge('e-1', 'node-db-a', 'node-db-b', 'Replication')];
+  const findings = validateArchitecture(nodes, edges);
+  assert.ok(!findings.some(f => f.subcategory === 'protocol'));
+});
+
+// 'nacl-vs-security-group' deliberately connects its app server to RDS over HTTPS (not SQL) -
+// that mismatch is the entire point of the lesson (a NACL that only denies TCP lets it through,
+// while the database's Security Group, which only allows SQL, correctly blocks it). The protocol
+// validator is expected to flag it like any other mismatch; this template is just where that
+// finding is supposed to appear rather than indicate a data bug.
+const TEMPLATES_WITH_INTENTIONAL_PROTOCOL_MISMATCH = new Set(['nacl-vs-security-group']);
+
+test('16. Protocol compatibility: every reference architecture is internally consistent', () => {
+  for (const arch of REFERENCE_ARCHITECTURES) {
+    const findings = validateArchitecture(arch.nodes as any, arch.edges as any);
+    const protocolFindings = findings.filter(f => f.subcategory === 'protocol');
+    if (TEMPLATES_WITH_INTENTIONAL_PROTOCOL_MISMATCH.has(arch.id)) {
+      assert.ok(protocolFindings.length > 0, `${arch.id} should still surface its intentional protocol mismatch`);
+    } else {
+      assert.deepStrictEqual(protocolFindings, [], `${arch.id} has unexpected protocol mismatches: ${protocolFindings.map(f => f.problem).join(' | ')}`);
+    }
+  }
+});

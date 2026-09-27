@@ -1,0 +1,281 @@
+{
+  "id": "event-driven-async",
+  "name": "Event-Driven Decoupled Architecture (SQS Buffer)",
+  "category": "Decoupled / Asynchronous",
+  "difficulty": "Advanced",
+  "description": "Protects backend relational databases from traffic surges by introducing an asynchronous SQS buffer between the web API and background worker tasks.",
+  "learningOutcome": "Teaches how asynchronous message queues act as shock absorbers preventing database thread exhaustion during 10x traffic spikes.",
+  "nodes": [
+    {
+      "id": "box-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 150,
+        "y": 50
+      },
+      "data": {
+        "label": "VPC",
+        "boundaryType": "vpc",
+        "width": 920,
+        "height": 310,
+        "cidr": "10.0.0.0/16"
+      },
+      "style": {
+        "width": 920,
+        "height": 310
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": -2
+    },
+    {
+      "id": "box-public-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 170,
+        "y": 170
+      },
+      "data": {
+        "label": "Public subnet",
+        "boundaryType": "public_subnet",
+        "width": 120,
+        "height": 120
+      },
+      "style": {
+        "width": 120,
+        "height": 120
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "box-private-subnet",
+      "type": "boundaryNode",
+      "position": {
+        "x": 340,
+        "y": 60
+      },
+      "data": {
+        "label": "Private subnet",
+        "boundaryType": "private_subnet",
+        "width": 700,
+        "height": 280
+      },
+      "style": {
+        "width": 700,
+        "height": 280
+      },
+      "draggable": false,
+      "selectable": true,
+      "zIndex": 0
+    },
+    {
+      "id": "node-user",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Client User",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 120,
+        "y": 100
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "Internet Gateway",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "node-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 200,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "Application Load Balancer",
+        "category": "Load Balancing",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 2,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-web-ecs",
+      "type": "serviceNode",
+      "position": {
+        "x": 380,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "ecs",
+        "label": "Web API (ECS)",
+        "category": "Containers",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 3,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-sqs",
+      "type": "serviceNode",
+      "position": {
+        "x": 560,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "sqs",
+        "label": "Amazon SQS",
+        "category": "Messaging",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": true,
+        "notes": "Buffers requests"
+      }
+    },
+    {
+      "id": "node-worker-ecs",
+      "type": "serviceNode",
+      "position": {
+        "x": 740,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "ecs",
+        "label": "Worker Service",
+        "category": "Containers",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 2,
+        "multiAz": true
+      }
+    },
+    {
+      "id": "node-rds",
+      "type": "serviceNode",
+      "position": {
+        "x": 920,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "rds",
+        "label": "Amazon RDS (Multi-AZ)",
+        "category": "Databases",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "private",
+        "replicas": 2,
+        "multiAz": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-u-igw",
+      "source": "node-user",
+      "target": "node-igw",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 1,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-igw-alb",
+      "source": "node-igw",
+      "target": "node-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "stepNumber": 2,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-alb-web",
+      "source": "node-alb",
+      "target": "node-web-ecs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "stepNumber": 3,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "e-web-sqs",
+      "source": "node-web-ecs",
+      "target": "node-sqs",
+      "type": "custom",
+      "data": {
+        "protocol": "Message",
+        "stepNumber": 4,
+        "interactionType": "asynchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-sqs-worker",
+      "source": "node-sqs",
+      "target": "node-worker-ecs",
+      "type": "custom",
+      "data": {
+        "protocol": "Message",
+        "stepNumber": 5,
+        "interactionType": "asynchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "e-worker-rds",
+      "source": "node-worker-ecs",
+      "target": "node-rds",
+      "type": "custom",
+      "data": {
+        "protocol": "SQL",
+        "stepNumber": 6,
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 4000
+      }
+    }
+  ]
+}

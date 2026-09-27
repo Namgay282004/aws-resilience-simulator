@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
-import { calculateArchitectureCost, getTrafficScaleFactor, HOURS_PER_MONTH } from '../../engine/cost/costCalculator.ts';
+import { calculateArchitectureCost, getTrafficScaleFactor, HOURS_PER_MONTH, COST_REGIONS, type CostRegion } from '../../engine/cost/costCalculator.ts';
 import { AwsServiceIcon } from '../icons/AwsServiceIcons.tsx';
 import {
   DollarSign,
@@ -33,10 +33,11 @@ export const CostEstimatorModal: React.FC<CostEstimatorModalProps> = ({ isOpen, 
 
   // Local traffic level override for interactive bill simulation
   const [simulatedTraffic, setSimulatedTraffic] = useState<string>(scenario.trafficLevel || 'normal');
+  const [region, setRegion] = useState<CostRegion>('us-east-1');
 
   const report = useMemo(() => {
-    return calculateArchitectureCost(nodes, simulatedTraffic);
-  }, [nodes, simulatedTraffic]);
+    return calculateArchitectureCost(nodes, simulatedTraffic, region);
+  }, [nodes, simulatedTraffic, region]);
 
   if (!isOpen) return null;
 
@@ -87,7 +88,7 @@ export const CostEstimatorModal: React.FC<CostEstimatorModalProps> = ({ isOpen, 
                   AWS Architecture Cost Estimator & Bill Simulator
                 </h2>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
-                  US-East-1 Pricing
+                  {report.regionLabel} Pricing
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -116,6 +117,30 @@ export const CostEstimatorModal: React.FC<CostEstimatorModalProps> = ({ isOpen, 
 
         {/* Traffic Simulation Selector & Timeframe Controls */}
         <div className="px-6 py-3 bg-slate-50/80 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          {/* Region Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-circuit-600" />
+              Pricing Region:
+            </span>
+            <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-2xs">
+              {COST_REGIONS.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => setRegion(r.id)}
+                  title={`Approximate ${r.label} regional pricing (blended premium over US baseline, not a live per-SKU quote)`}
+                  className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
+                    region === r.id
+                      ? 'bg-circuit-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Traffic Scale Simulator */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1">

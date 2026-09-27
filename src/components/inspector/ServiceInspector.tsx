@@ -1,3 +1,8 @@
+import { AsgPanel } from './AsgPanel.tsx';
+import { checkConnection, connectionProtocols, connectionOperations } from '../../engine/architecture/connectionContracts.ts';
+import { ManagedServicePanel } from './ManagedServicePanel.tsx';
+import { Ec2IamRolePanel } from './Ec2IamRolePanel.tsx';
+import { createTeachingNacl } from '../../engine/network/naclPreset.ts';
 import { NetworkIdentityPanel } from './NetworkIdentityPanel.tsx';
 import { SUBNET_REQUIRED_SERVICE_IDS } from '../../engine/layout/containment.ts';
 import { relationshipKind, type RelationshipKind } from '../../engine/architecture/relationships.ts';
@@ -216,15 +221,14 @@ export const ServiceInspector: React.FC = () => {
           {/* Step Sequence Number */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Sequence Step Number (Diagram Badge)
+              Sequence Step Number (Simulation Priority)
             </label>
             <input
               type="number"
               min="1"
-              max="20"
               value={(selectedEdge.data as any)?.stepNumber || ''}
               onChange={(e) => updateEdgeData(selectedEdge.id, { stepNumber: e.target.value ? Number(e.target.value) : undefined } as any)}
-              placeholder="e.g. 1, 2, 3..."
+              placeholder="Optional: 1, 2, 3… (lowest first)"
               className="w-full px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-circuit-600 font-mono"
             />
           </div>
@@ -239,17 +243,19 @@ export const ServiceInspector: React.FC = () => {
               onChange={(e) => updateEdgeData(selectedEdge.id, { protocol: e.target.value as ProtocolType })}
               className="w-full px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-circuit-600 font-mono"
             >
-              <option value="HTTPS">HTTPS (Encrypted Web Traffic)</option>
-              <option value="HTTP">HTTP (Unencrypted Web Traffic)</option>
-              <option value="DNS">DNS (Domain Resolution)</option>
-              <option value="SQL">SQL (Database Queries)</option>
-              <option value="Message">Message (SQS Queue Hand-off)</option>
-              <option value="Event">Event (EventBridge / Lambda trigger)</option>
-              <option value="Object access">Object Access (S3 Bucket I/O)</option>
-              <option value="TCP">TCP / Raw Socket</option>
+              {!(relationshipKind(selectedEdge.data) === 'manages' ? ['Event'] : connectionProtocols(sourceNode, targetNode)).includes(edgeData.protocol) && <option value={edgeData.protocol}>Unsupported: {edgeData.protocol}</option>}
+              {(relationshipKind(selectedEdge.data) === 'manages' ? ['Event'] : connectionProtocols(sourceNode, targetNode)).map(protocol => <option key={protocol} value={protocol}>{protocol}</option>)}
             </select>
           </div>
 
+          <p className="text-xs text-amber-700" role="status">{checkConnection(sourceNode, targetNode, selectedEdge.data).reason}</p>
+          <p className="text-xs text-slate-500">Transport: {['HTTP', 'HTTPS', 'TCP'].includes(edgeData.protocol) ? edgeData.protocol : edgeData.protocol === 'DNS' ? 'UDP' : ['SQL', 'gRPC'].includes(edgeData.protocol) ? 'TCP' : 'HTTPS'}</p>
+          <label className="block text-xs">API operation
+            <select className="block border rounded p-2 w-full" value={selectedEdge.data?.action ?? ''} onChange={e => updateEdgeData(selectedEdge.id, { action: e.target.value || undefined })}>
+              <option value="">Default service operation</option>
+              {connectionOperations(targetNode).map(action => <option key={action}>{action}</option>)}
+            </select>
+          </label>
           <label className="block text-xs font-semibold text-slate-700">
             Connection meaning
             <select className="block w-full border rounded p-2 mt-1" value={relationshipKind(selectedEdge.data)}
@@ -260,7 +266,7 @@ export const ServiceInspector: React.FC = () => {
               <option value="route-association">Route association</option>
               <option value="target-registration">Target registration</option>
             </select>
-            <span className="block font-normal text-slate-500 mt-1">Structural relationships do not carry requests. Management, route association and target registration behavior is not yet simulated.</span>
+            <span className="block font-normal text-slate-500 mt-1">Structural relationships do not carry requests. Configure ASG members and alarm associations in the ASG Config panel; drawing a management line alone does not configure a scaling policy.</span>
           </label>
 
           {/* Coupling Mode */}
@@ -610,8 +616,6 @@ export const ServiceInspector: React.FC = () => {
               The protocol deny-list below is a simplified control, not the full AWS rule table. */}
           {['public_subnet', 'private_subnet'].includes(boundaryType) && (() => {
             const denyList: string[] = bData.naclDenyInbound || [];
-            const isRestricted = bData.naclDenyInbound !== undefined;
-            const PROTOCOLS: ProtocolType[] = ['HTTP', 'HTTPS', 'SQL', 'DNS', 'gRPC', 'TCP', 'Event', 'Message', 'Object access'];
             const protectedNodes = nodes.filter(n => {
               if (n.type === 'boundaryNode') return false;
               const containing = findContainingSubnetBoundary(n as any, nodes.filter(x => x.type === 'boundaryNode') as any);
@@ -619,54 +623,22 @@ export const ServiceInspector: React.FC = () => {
             });
 
             const setRestricted = (restrict: boolean) => {
-              updateNodeData(selectedNode.id, { naclDenyInbound: restrict ? denyList : undefined } as any);
+              if (!restrict) return;
+              const config = bData.customNacl ?? createTeachingNacl(bData.label || 'Subnet', boundaryType === 'public_subnet');
+              const legacyRules = denyList.map((protocol, index) => ({ ruleNumber: 10 + index, type: protocol,
+                protocol, portRange: protocol === 'SQL' ? '3306' : protocol === 'HTTP' ? '80' : protocol === 'HTTPS' ? '443' : protocol === 'DNS' ? '53' : 'Protocol match',
+                cidr: '0.0.0.0/0', action: 'DENY' as const }));
+              updateNodeData(selectedNode.id, { customNacl: bData.customNacl ?? { ...config, inboundRules: [...legacyRules, ...config.inboundRules] }, naclDenyInbound: undefined } as any);
+              setShowNaclSideColumn(true);
             };
-            const toggleProtocol = (proto: string) => {
-              const next = denyList.includes(proto) ? denyList.filter(p => p !== proto) : [...denyList, proto];
-              updateNodeData(selectedNode.id, { naclDenyInbound: next } as any);
-            };
-
             return (
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Network ACL — subnet association
                 </label>
                 {bData.customNacl && <button onClick={() => setShowNaclSideColumn(true)} className="text-xs text-circuit-700 underline mb-2">View NACL Rules</button>}
-                <p className="text-[10px] text-slate-500 mb-2">Applies to this subnet. AWS NACLs are stateless and evaluate numbered allow/deny rules in order. This protocol control is simplified.</p>
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer mb-1.5">
-                  <input type="checkbox" checked={isRestricted} onChange={(e) => setRestricted(e.target.checked)} className="w-3 h-3" />
-                  Add explicit DENY rules
-                </label>
-
-                {!isRestricted ? (
-                  <p className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
-                    Default rule: allows all traffic (no DENY rules configured).
-                  </p>
-                ) : (
-                  <>
-                    <p className="text-[10px] text-slate-400">DENY these inbound protocols (everything else is allowed):</p>
-                    <div className="flex flex-wrap gap-1">
-                      {PROTOCOLS.map(proto => {
-                        const active = denyList.includes(proto);
-                        return (
-                          <button
-                            key={proto}
-                            onClick={() => toggleProtocol(proto)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
-                              active ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-300 text-slate-500 hover:border-rose-400'
-                            }`}
-                          >
-                            {proto}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {denyList.length === 0 && (
-                      <p className="text-[10px] text-slate-400 mt-1">No DENY rules yet - currently equivalent to allowing everything.</p>
-                    )}
-                  </>
-                )}
-
+                <p className="text-[10px] text-slate-500 mb-2">Subnet-wide numbered inbound/outbound rules, like diagram 3.1. The teaching preset allows HTTP (public subnets), MySQL and ephemeral return traffic; review its CIDRs. This is not the AWS deny-all custom NACL default.</p>
+                {!bData.customNacl && <button className="px-2 py-1 border rounded text-xs" onClick={() => setRestricted(true)}>Enable NACL rule set</button>}
                 <p className="mt-2 text-[10px] text-slate-400">
                   {protectedNodes.length === 0
                     ? 'No resources placed inside this subnet yet.'
@@ -1501,9 +1473,12 @@ export const ServiceInspector: React.FC = () => {
             {/* ---------------------------------------------------- */}
             {activeLabReference?.configurationChecks && nodeData.customConfig && <LabConfigurationPanel key={selectedNode.id} config={nodeData.customConfig} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
             {nodeData.serviceId === 'route_tables' && <LabConfigurationPanel key={selectedNode.id} config={nodeData.customConfig ?? { routeTable: { routes: [] } }} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
+            {['sqs', 'sns', 'cloudwatch', 'cloudtrail'].includes(nodeData.serviceId) && <ManagedServicePanel key={selectedNode.id} />}
+            {nodeData.serviceId === 'ec2' && <Ec2IamRolePanel key={selectedNode.id} data={nodeData} nodes={nodes} onChange={iamRole => updateNodeData(selectedNode.id, { iamRole })} />}
             {SUBNET_REQUIRED_SERVICE_IDS.includes(nodeData.serviceId) && <NetworkIdentityPanel data={nodeData} nodes={nodes} onChange={networkIdentity => updateNodeData(selectedNode.id, { networkIdentity })} />}
             {['s3_gateway_endpoint', 'privatelink'].includes(nodeData.serviceId) && <EndpointConfigurationPanel data={nodeData} onChange={customConfig => updateNodeData(selectedNode.id, { customConfig })} />}
             {nodeData.serviceId === 'ecs' && <EcsConfigurationPanel data={nodeData} onChange={(customConfig) => updateNodeData(selectedNode.id, { customConfig })} />}
+            {['ec2_auto_scaling', 'cloudwatch'].includes(nodeData.serviceId) && <AsgPanel key={`asg-${selectedNode.id}`} />}
             {nodeData.serviceId === 'ec2' && (
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 border-b border-slate-200 pb-2">

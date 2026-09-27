@@ -112,6 +112,7 @@ export interface ServiceNodeData extends Record<string, unknown> {
 export type FlowStatus = 'active' | 'completed' | 'pending' | 'failed' | 'dimmed' | 'idle';
 
 export interface ConnectionData extends Record<string, unknown> {
+  transport?: 'HTTP' | 'HTTPS' | 'TCP' | 'UDP';
   /** Structural relationships never act as forwarding hops. Legacy edges default to request. */
   relationship?: import('../engine/architecture/relationships.ts').RelationshipKind;
   protocol: ProtocolType;
@@ -201,6 +202,7 @@ export interface SimulationScenario {
 }
 
 export interface SimulationResult {
+  serviceStates?: Record<string, import('../engine/services/operations.ts').Runtime>;
   scenario: SimulationScenario;
   steps: SimulationStep[];
   success: boolean;
