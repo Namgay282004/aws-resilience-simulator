@@ -42,9 +42,36 @@ Loading a normal architecture template or clearing the canvas exits lab evaluati
 
 ## Add a future lab
 
-Add a `CourseLab` entry in `src/data/courseLabs.ts` with a stable ID, course number, original URL, learning objectives, explicit limitations, and one or more `LabReference` snapshots. Reference service IDs must exist in the catalog; edges must resolve to nodes. Add expected outcomes to `test/course-labs.test.ts` and verify them against the existing engines. Do not add AWS semantics to `LabsModal`.
+Lab reference snapshots (`LabReference`: nodes/edges/scenario, optional `configurationChecks`,
+optional `authorization`) live as individual JSON files in `src/data/labs/` - not written inline
+in TypeScript. To add or edit one: download an existing reference from the Labs modal (small
+download icon on any reference card) as a starting point, edit the JSON, place it in
+`src/data/labs/` (keeping its `id` unique), then run `npm run labs:sync` (or just `npm run dev`/
+`npm run build`/`npm test` - the catalogue regenerates automatically first). See
+`src/data/labs/README.md` for the full workflow. There is no in-app upload for lab references -
+placing the file is the only path to a permanent change, since a lab reference can carry
+configuration checks and IAM authorization data that need reviewing, not blind re-uploading.
 
-`src/data/courseLabShared.ts` holds shared reference types/builders; `courseLabsAdvanced.ts` holds Labs 9–13. `src/engine/labs/runLabReference.ts` delegates network scenarios to the live simulator, IAM scenarios to the policy evaluator, and configuration references to `checkLabConfiguration.ts`. Checks read actual node settings/relationships and record inputs, decisions and rule sources; they are course assertions, not a general AWS configuration validator. Context owns canvas replacement and playback. Catalog snapshots are cloned so student edits cannot alter another student's starting example.
+Course-lab metadata (which labs exist, objectives, source URL, limitations, and which reference
+IDs belong to which lab) is separate, hand-maintained data in `src/data/courseLabsMeta.json` - add
+an entry there (with a stable `id`, course `number`, `sourceUrl`, `objectives`, `limitations`, and
+the `referenceIds` of the JSON files that belong to it) when adding a new lab rather than just a
+new reference to an existing one. Reference service IDs must exist in the catalog; edges must
+resolve to nodes. Add expected outcomes to `test/course-labs.test.ts` and verify them against the
+existing engines. Do not add AWS semantics to `LabsModal`.
+
+`src/data/courseLabShared.ts` holds the shared `LabReference`/`CourseLab`/`LabConfigurationCheck`
+types (no builder functions - those were retired once every lab reference they produced was
+captured as a JSON snapshot; `npm test` passing unchanged, 469/469 at migration time, was the
+verification that nothing was lost). `src/data/labsRegistry.ts` is generated from the JSON folder
+by `scripts/generate-labs.mjs`; `src/data/courseLabs.ts` assembles the runtime `COURSE_LABS` array
+by looking up each lab's `referenceIds` against that registry, throwing at import time if a
+referenced id has no matching file. `src/engine/labs/runLabReference.ts` delegates network
+scenarios to the live simulator, IAM scenarios to the policy evaluator, and configuration
+references to `checkLabConfiguration.ts`. Checks read actual node settings/relationships and
+record inputs, decisions and rule sources; they are course assertions, not a general AWS
+configuration validator. Context owns canvas replacement and playback. Reference snapshots are
+cloned before editing so student edits cannot alter another student's starting example.
 
 Validation covers all 29 reference outcomes, deterministic/immutable runs, graph identities, configuration mutation failures, missing resources/relationships, SG denial and target failover. UI integration covers Labs 9–13, current-canvas rechecks, retained IAM evaluation, and returning to ordinary simulation.
 

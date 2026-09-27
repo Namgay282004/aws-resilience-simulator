@@ -33,3 +33,12 @@ test('ASG EC2 contract is management-only and supports the current catalog ident
   assert.equal(checkConnection(node('ec2_auto_scaling'), node('ec2'), { relationship: 'manages', protocol: 'Event' }).status, 'valid');
   assert.equal(checkConnection(node('ec2_auto_scaling'), node('ec2'), { relationship: 'request', protocol: 'HTTP' }).status, 'unknown');
 });
+
+test('IAM authorization drawings never become application forwarding hops', async () => {
+  const { carriesRequest, isDependencyCall } = await import('../src/engine/architecture/relationships.ts');
+  const data: any = { relationship: 'authorization', protocol: 'Event' };
+  assert.equal(checkConnection(node('user'), node('iam'), data).status, 'valid');
+  assert.equal(checkConnection(node('iam'), node('s3'), data).status, 'valid');
+  assert.equal(carriesRequest(data), false); assert.equal(isDependencyCall(data), false);
+  assert.notEqual(checkConnection(node('user'), node('iam'), { protocol: 'HTTP' }).status, 'valid');
+});

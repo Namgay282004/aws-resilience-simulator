@@ -10,7 +10,7 @@ export function runLiveSimulation(nodes: Node<ServiceNodeData>[], edges: Edge<Co
   if (edges.some(edge => isDependencyCall(edge.data))) {
     result.summary += ' Scope: the forwarding path and supported dependency calls were evaluated; other dependency-only arrows were not executed.';
   }
-  if (edges.some(edge => ['manages', 'route-association', 'target-registration'].includes(relationshipKind(edge.data)))) {
+  if (edges.some(edge => ['authorization', 'manages', 'route-association', 'target-registration'].includes(relationshipKind(edge.data)))) {
     result.summary += ' Scope: structural relationships do not carry requests; ASG control-plane changes run separately through the scaling controls. Other structural control-plane behavior is not yet simulated.';
   }
   return result;

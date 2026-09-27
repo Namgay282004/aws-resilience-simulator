@@ -1,0 +1,387 @@
+{
+  "id": "lab11-versioning-invalid",
+  "title": "Source bucket versioning disabled",
+  "description": "Follow source, build artifacts, service roles and the supplied release configuration.",
+  "expected": "FAIL the source-versioning check.",
+  "nodes": [
+    {
+      "id": "lab-source",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "usms-pipeline-artifacts",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "versioning": false,
+          "region": "us-east-1",
+          "sourceKey": "source/usms-enrolment-src.zip"
+        },
+        "notes": "One versioned bucket holds the source ZIP and SourceOutput/BuildOutput artifacts."
+      }
+    },
+    {
+      "id": "lab-pipeline",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "codepipeline",
+        "label": "usms-enrolment-pipeline",
+        "category": "Developer Tools",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "region": "us-east-1",
+          "stages": [
+            "Source",
+            "Build"
+          ],
+          "serviceRole": "usms-codepipeline-role"
+        }
+      }
+    },
+    {
+      "id": "lab-build",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "codebuild",
+        "label": "usms-enrolment-build",
+        "category": "Developer Tools",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "sourceType": "CODEPIPELINE",
+          "artifactType": "CODEPIPELINE",
+          "buildspec": "buildspec.yml",
+          "serviceRole": "usms-codebuild-role",
+          "containerName": "enrolment-api",
+          "imageDefinitions": [
+            {
+              "name": "enrolment-api",
+              "imageUri": "000000000000.dkr.ecr.us-east-1.amazonaws.com/usms-enrolment:r7"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lab-pipeline-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-codepipeline-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-build-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-codebuild-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-build-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/aws/codebuild/usms-enrolment-build",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-source-lab-pipeline",
+      "source": "lab-source",
+      "target": "lab-pipeline",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Versioned source ZIP"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-pipeline-lab-build",
+      "source": "lab-pipeline",
+      "target": "lab-build",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "SourceOutput → Build"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-lab-source",
+      "source": "lab-build",
+      "target": "lab-source",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "BuildOutput in artifact store"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-pipeline-role-lab-pipeline",
+      "source": "lab-pipeline-role",
+      "target": "lab-pipeline",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Service role"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-role-lab-build",
+      "source": "lab-build-role",
+      "target": "lab-build",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Build role"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-lab-build-logs",
+      "source": "lab-build",
+      "target": "lab-build-logs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Build logs"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab11-versioning-invalid",
+    "name": "Source bucket versioning disabled",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-pipeline",
+    "trafficLevel": "normal"
+  },
+  "configurationChecks": [
+    {
+      "id": "source-versioning",
+      "nodeId": "lab-source",
+      "path": [
+        "customConfig",
+        "versioning"
+      ],
+      "operator": "equals",
+      "expected": true,
+      "reason": "An S3 pipeline source requires bucket versioning.",
+      "source": "https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-S3.html"
+    },
+    {
+      "id": "source-key",
+      "nodeId": "lab-source",
+      "path": [
+        "customConfig",
+        "sourceKey"
+      ],
+      "operator": "equals",
+      "expected": "source/usms-enrolment-src.zip",
+      "reason": "The course pipeline reads the enrolment source archive.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "buildspec",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "buildspec"
+      ],
+      "operator": "equals",
+      "expected": "buildspec.yml",
+      "reason": "The course uses buildspec.yml at the source root.",
+      "source": "https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html"
+    },
+    {
+      "id": "build-input",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "sourceType"
+      ],
+      "operator": "equals",
+      "expected": "CODEPIPELINE",
+      "reason": "The course CodeBuild project receives pipeline artifacts.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "build-output",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "artifactType"
+      ],
+      "operator": "equals",
+      "expected": "CODEPIPELINE",
+      "reason": "The course build returns its artifact to CodePipeline.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "stages",
+      "nodeId": "lab-pipeline",
+      "path": [
+        "customConfig",
+        "stages"
+      ],
+      "operator": "equals",
+      "expected": [
+        "Source",
+        "Build"
+      ],
+      "reason": "Course stages must retain their declared order.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "lab-source-lab-pipeline-relationship",
+      "nodeId": "lab-source",
+      "otherNodeId": "lab-pipeline",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-source → lab-pipeline relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "lab-pipeline-lab-build-relationship",
+      "nodeId": "lab-pipeline",
+      "otherNodeId": "lab-build",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-pipeline → lab-build relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "lab-build-lab-source-relationship",
+      "nodeId": "lab-build",
+      "otherNodeId": "lab-source",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build → lab-source relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "lab-pipeline-role-lab-pipeline-relationship",
+      "nodeId": "lab-pipeline-role",
+      "otherNodeId": "lab-pipeline",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-pipeline-role → lab-pipeline relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "lab-build-role-lab-build-relationship",
+      "nodeId": "lab-build-role",
+      "otherNodeId": "lab-build",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build-role → lab-build relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "lab-build-lab-build-logs-relationship",
+      "nodeId": "lab-build",
+      "otherNodeId": "lab-build-logs",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build → lab-build-logs relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    }
+  ],
+  "simulationScope": "Partial configuration checks only. IAM service-role authorization, buildspec commands, Docker/ECR operations, task revision registration and rollback are not executed."
+}

@@ -1,0 +1,382 @@
+{
+  "id": "lab2-endpoint",
+  "title": "Reference request",
+  "description": "Load the course resource layout and explore a supported request path.",
+  "expected": "SUCCESS on the reference request; inspect each recorded decision.",
+  "nodes": [
+    {
+      "id": "lab-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 180,
+        "y": 20
+      },
+      "style": {
+        "width": 1040,
+        "height": 1100
+      },
+      "data": {
+        "label": "usms-vpc",
+        "boundaryType": "vpc",
+        "width": 1040,
+        "height": 1100,
+        "cidr": "10.0.0.0/16"
+      }
+    },
+    {
+      "id": "lab-public-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 240
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-a · AZ-A",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.1.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-public-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 240
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-b · AZ-B",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.2.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-private-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 560
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-a · AZ-A",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.3.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-private-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 560
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-b · AZ-B",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.4.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-endpoint",
+      "type": "serviceNode",
+      "position": {
+        "x": 900,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "usms-s3-endpoint",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-client",
+      "type": "serviceNode",
+      "position": {
+        "x": 10,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Student browser",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 60
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "usms-igw",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-nat",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "nat_gateway",
+        "label": "usms-nat",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-public-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-public-rt → IGW",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: public subnets; default route to usms-igw. Live route-table selection is approximated."
+      }
+    },
+    {
+      "id": "lab-private-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 700,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-private-rt → NAT",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: private subnets; default route to usms-nat; S3 endpoint route."
+      }
+    },
+    {
+      "id": "lab-app-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 50
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-app-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "allowedProtocols": [
+          "HTTP",
+          "HTTPS"
+        ]
+      }
+    },
+    {
+      "id": "lab-db-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 210
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-db-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "securityGroupRules": {
+          "inbound": [
+            {
+              "protocol": "SQL",
+              "portRange": "ALL",
+              "source": {
+                "type": "securityGroup",
+                "securityGroupId": "lab-app-sg"
+              }
+            }
+          ],
+          "outbound": []
+        }
+      }
+    },
+    {
+      "id": "lab-probe",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 640
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "Private network probe (teaching aid)",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "iamRole": {
+          "id": "probe-role",
+          "trustPolicy": {
+            "id": "trust",
+            "kind": "trust",
+            "statements": [
+              {
+                "effect": "Allow",
+                "principals": [
+                  "ec2"
+                ],
+                "actions": [
+                  "sts:AssumeRole"
+                ],
+                "resources": [
+                  "*"
+                ]
+              }
+            ]
+          },
+          "identityPolicies": [
+            {
+              "id": "USMSStudentDataReadWrite",
+              "kind": "identity",
+              "statements": [
+                {
+                  "effect": "Allow",
+                  "actions": [
+                    "s3:GetObject",
+                    "s3:PutObject"
+                  ],
+                  "resources": [
+                    "arn:aws:s3:::usms-student-data/*"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lab-bucket",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 640
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "S3 probe resource (teaching aid)",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "resourceArn": "arn:aws:s3:::usms-student-data/transcript.txt"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-probe-lab-endpoint",
+      "source": "lab-probe",
+      "target": "lab-endpoint",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-endpoint-lab-bucket",
+      "source": "lab-endpoint",
+      "target": "lab-bucket",
+      "type": "custom",
+      "data": {
+        "protocol": "Object access",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab2-endpoint",
+    "name": "lab2-endpoint",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-probe",
+    "trafficLevel": "normal"
+  }
+}

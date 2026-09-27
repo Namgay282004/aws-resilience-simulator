@@ -11,6 +11,7 @@ import { relationshipKind, RelationshipKind } from '../../engine/architecture/re
 const RELATIONSHIP_DASH: Record<RelationshipKind, string | undefined> = {
   request: undefined, // solid - direct request/response traffic
   dependency: '6,3', // dashed - calls another service it depends on
+  authorization: '4,3', // policy relationship, not request traffic
   manages: '2,3', // dotted - control-plane "manages/configures" edge
   'route-association': '8,2,2,2', // dash-dot - route table association
   'target-registration': '1,4' // fine dots - load balancer target registration

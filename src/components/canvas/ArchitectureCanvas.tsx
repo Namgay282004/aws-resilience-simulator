@@ -1,4 +1,6 @@
 import { ReferenceLibrary } from '../references/ReferenceLibrary.tsx';
+import { CanvasLayers, canvasLayerKey } from './CanvasLayers.tsx';
+import { asgMembershipFrames } from '../../engine/layout/asgMembershipFrames.ts';
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import {
   ReactFlow,
@@ -22,6 +24,7 @@ import { ServiceNodeData, NodeHealth } from '../../types/index.ts';
 import { Route, Shield } from 'lucide-react';
 
 const nodeTypes = {
+  asgMembershipFrame: ({ data }: any) => <div className="w-full h-full border-2 border-dashed border-orange-500 rounded-xl pointer-events-none bg-transparent"><span className="absolute left-3 top-1 px-1 bg-white text-xs font-semibold text-orange-700">{data.label} · membership</span></div>,
   serviceNode: ServiceNode,
   boundaryNode: BoundaryNode
 };
@@ -61,6 +64,15 @@ export const ArchitectureCanvas: React.FC = () => {
   } = useArchitecture();
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  // Project visibility into React Flow without modifying the architecture used by the engine.
+  const hiddenNodeIds = new Set(nodes.filter(node => hiddenLayers.has(canvasLayerKey(node))).map(node => node.id));
+  const visibleNodes = nodes.map(node => hiddenNodeIds.has(node.id) ? { ...node, hidden: true } : node);
+  const membershipFrames = asgMembershipFrames(visibleNodes);
+  const displayedFrames = membershipFrames.map(node => hiddenLayers.has(canvasLayerKey(node)) ? { ...node, hidden: true } : node);
+  const visibleEdges = edges.map(edge => hiddenNodeIds.has(edge.source) || hiddenNodeIds.has(edge.target)
+    ? { ...edge, hidden: true } : edge);
+  useEffect(() => { setHiddenLayers(new Set()); }, [canvasRevision]);
   const selectedId = selectedNode?.id;
 
   // Global Keyboard shortcuts for layer order adjustments
@@ -195,9 +207,9 @@ export const ArchitectureCanvas: React.FC = () => {
     <div className="relative w-full h-full bg-white flex-1 overflow-hidden select-none" ref={reactFlowWrapper}>
       <ReactFlow
         key={canvasRevision}
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
+        nodes={[...visibleNodes, ...displayedFrames]}
+        edges={visibleEdges}
+        onNodesChange={changes => onNodesChange(changes.filter(change => !('id' in change) || !membershipFrames.some(frame => frame.id === change.id)))}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         connectionLineType={ConnectionLineType.Step}
@@ -276,6 +288,10 @@ export const ArchitectureCanvas: React.FC = () => {
               <span className={`w-1.5 h-1.5 rounded-full ${showNaclSideColumn ? 'bg-white' : 'bg-circuit-500 animate-pulse'}`} />
             </button>
           )}
+        </Panel>
+
+        <Panel position="top-right" className="m-3">
+          <CanvasLayers nodes={[...nodes, ...membershipFrames]} hidden={hiddenLayers} onChange={setHiddenLayers} />
         </Panel>
 
         {/* Architectural Title Banner (from Problem 3.1) - only for the actual missing-return-rule

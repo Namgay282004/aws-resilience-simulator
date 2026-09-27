@@ -17,12 +17,22 @@ Select **CloudWatch → Config** in the right-hand panel to configure the metric
 monitored ALB, policy type, threshold/target and consecutive breaching periods:
 
 - **Simple scaling**: fixed positive instance increment, launch/warmup and cooldown guards.
-- **Target tracking — illustrative, scale-out only**: desired capacity approximated as
+- **Target tracking — illustrative**: desired capacity approximated as
   ceil(requests per target × observed target count / target value), bounded by min/max.
+  Optional scale-in requires consecutive below-target samples and completed warmup.
   This does not reproduce AWS's internal target-tracking controller or managed alarms.
+- **Step scaling**: non-overlapping breach-offset bands select a nonnegative ChangeInCapacity
+  increment. Pending capacity counts toward desired to prevent duplicate launches in warmup.
+  The panel exposes two editable bands; the final band is unbounded. Scale-out only.
+- **Scheduled scaling**: two editable one-time actions set desired capacity at simulated seconds,
+  independent of alarm state or traffic. Use Advance one period or Play scaling in CloudWatch
+  Config. A crossed action executes once; reset restarts the clock. These are not UTC/cron schedules.
 
 Policies belong to the ASG; CloudWatch's panel edits the associated policy for convenience.
-Reset scaling before changing locked policy settings. Lower load does not scale in.
+Policy fields remain editable during a run. Editing a policy pauses playback and resets that group’s generated instances/runtime before applying the change; initial component positions are retained. Threshold/sample changes apply on the next period. Scale-in removes generated nodes and their edges immediately, retaining the initial member count
+as a demo floor in addition to min capacity. Scheduled actions enforce the same floor.
+No draining delay or AWS termination-policy selection is modeled. The reference enables
+target scale-in; older configurations without that flag remain scale-out only.
 The demo starts with two EC2 instances, min2/max4, threshold50. Normal traffic is 120/minute,
 so the first two samples are 60/target. After the new target is ready, subsequent samples
 fall to 40/target. Use High traffic to demonstrate further growth toward max4.
@@ -51,17 +61,18 @@ clock, samples, observations and pending lifecycle. No schema migration is neede
 **Reset scaling** and global request **Reset** remove generated nodes/links and runtime,
 retaining original members and configured monitoring edges. Expanded boundary sizes remain.
 Manual sample mode remains for old drafts and controlled experiments; its Play/Pause controls
-are hidden in ALB mode. Manual playback is inspector-local and is not restored from drafts.
+are available in all modes. ALB playback repeats the current request scenario; scheduled playback advances without requests. Faster time starts playback and cycles 1×/2×/5× (one period per 1.5/0.75/0.3 real seconds). Manual playback is inspector-local and is not restored from drafts.
 
 ## Limits
 
 One blueprint subnet, explicit initial members, one dedicated alarm per group; maximum20
 instances. Blueprint is an existing EC2 configuration, not a versioned AWS Launch Template.
 N consecutive samples (1–10); missing data yields INSUFFICIENT_DATA. No raw sample aggregation,
-M-of-N alarm logic, automatic CPU metrics, scale-in, failed-instance replacement, full health
+M-of-N alarm logic, automatic CPU metrics, termination of initial diagram members, failed-instance replacement, full health
 checks, ECS placement, mixed instance weights, SNS alarm fanout or scaling IAM evaluation.
 Startup succeeds after a configured delay unless resource health is explicitly failed.
-Warmup gates subsequent scaling; target tracking is deliberately approximate.
+Warmup blocks dynamic scale-in; simple policies wait for cooldown, while step policies account
+for pending capacity when calculating additional launches. Target tracking is deliberately approximate.
 
 Live UI no longer fabricates EC2 scaling from Multi-AZ, replica count or a stray ASG node.
 The old multiplier remains only in low-level compatibility scenarios.
@@ -80,3 +91,29 @@ and scaling with the inspector closed. No browser screenshot QA performed.
 
 Validation 2026-09-24: 463 tests pass (438 engine/conformance + 25 UI); production build passes
 with the existing bundle-size warning.
+
+## Canvas reference update (2026-09-28)
+
+The reference has a separate control column (CloudWatch and ASG), ALB above the EC2 row,
+and space for generated instances. Its service nodes opt out of the More information overlay;
+policy controls remain in the inspector and effects are real canvas nodes.
+
+AWS sources: [step scaling](https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html),
+[scheduled scaling](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scheduled-scaling.html),
+[target tracking](https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html).
+
+Verified: 479 tests (447 engine/conformance +32 UI), production build passes with existing
+bundle-size warning. UI coverage selects scheduled policy and checks actual node creation/removal;
+engine coverage checks step boundaries, warmup, scheduled action timing and target scale-in.
+No browser screenshot review was available.
+
+Generated instances are numbered after initial members (EC2 3, EC2 4) and occupy the next available row slots. Existing node positions are unchanged. Regression coverage verifies labels, placement, and editing an active policy without a manual reset.
+
+## ASG membership frames
+
+Canvas renders a dashed orange membership frame around each ASG’s explicit and generated
+EC2 members, separately per subnet. Bounds follow actual node positions and measured sizes,
+including parent offsets. Frames resize as members move, launch or terminate. They are
+noninteractive display-only nodes, never network boundaries or new EC2 parents. Drafts
+reconstruct frames from membership; image exports include the visible frames. Layers can
+hide ASG membership frames. Regression: test/asg-membership-frames.test.ts.

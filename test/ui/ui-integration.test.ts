@@ -63,6 +63,32 @@ async function mount(showInspector = false, showLabs = false, showControls = fal
   };
 }
 
+test('Numbered connections select the path that animation playback highlights', async () => {
+  const h = await mount();
+  try {
+    await h.act(() => {
+      h.api().setNodes(['user', 'later', 'first'].map(id => ({ id, position: { x: 0, y: 0 }, data: { serviceId: id === 'user' ? 'user' : 'ec2', label: id, health: 'healthy', subnet: 'public' } })) as any);
+      h.api().setEdges(['later', 'first'].map((target, index) => ({ id: target, source: 'user', target, data: { protocol: 'HTTPS', stepNumber: index === 0 ? 2 : 1 } })) as any);
+      h.api().setScenario(s => ({ ...s, startNodeId: 'user', method: 'GET', path: '/' }));
+    });
+    await h.act(() => h.api().runScenario());
+    await h.act(() => h.api().setIsPlaying(false));
+    const result = h.api().simulationResult!;
+    assert.ok(result.path.includes('first'));
+    assert.ok(!result.path.includes('later'));
+    const traversalIndex = result.steps.findIndex(s => s.sourceNodeId === 'user' && s.targetNodeId === 'first');
+    assert.ok(traversalIndex >= 0);
+    await h.act(() => h.api().setActiveStepIndex(0));
+    for (let i = 0; i < traversalIndex; i++) await h.act(() => h.api().stepForward());
+    assert.equal(h.api().activeStepIndex, traversalIndex);
+    assert.equal(h.api().edges.find(e => e.id === 'first')?.data?.isSimulating, true);
+    assert.equal(h.api().edges.find(e => e.id === 'later')?.data?.flowStatus, 'dimmed');
+    assert.equal(h.api().edges.find(e => e.id === 'first')?.data?.stepNumber, 1);
+  } finally {
+    await h.unmount();
+  }
+});
+
 test('1. Build architecture: adding services and connecting them updates the Architecture Model', async () => {
   const h = await mount();
 
@@ -110,6 +136,28 @@ test('Labs: select instructions, run ALB failover, then load a clean editable re
     assert.match(h.api().simulationResult!.summary, /no scheduler, HPA/);
     assert.equal(h.api().nodes.find(n => n.id === 'lab-enrolment')!.data.replicas, 4);
   } finally { await h.unmount(); }
+});
+
+test('Labs: downloading a lab reference produces the exact file expected in src/data/labs/', async () => {
+  const previous = (window as any).showSaveFilePicker;
+  let saved = ''; let suggestedName = '';
+  (window as any).showSaveFilePicker = async (opts: { suggestedName: string }) => {
+    suggestedName = opts.suggestedName;
+    return { createWritable: async () => ({ write: async (text: string) => { saved = text; }, close: async () => {} }) };
+  };
+  const h = await mount(false, true);
+  try {
+    const button = (text: string) => [...document.querySelectorAll('button')].find(b => b.textContent?.includes(text))!;
+    await h.act(() => button('Lab 5').click());
+    const download = document.querySelector('[aria-label^="Download lab reference"]') as HTMLButtonElement;
+    assert.ok(download);
+    await h.act(() => download.click());
+    assert.equal(suggestedName, '05-lab5-alb.json');
+    assert.deepEqual(JSON.parse(saved), COURSE_LABS[4].references[0]);
+    // No upload/import surface for lab references - editing the file and placing it in
+    // src/data/labs/ is the only path to a permanent change.
+    assert.equal(document.querySelector('[aria-label="Import reference JSON"]'), null);
+  } finally { await h.unmount(); (window as any).showSaveFilePicker = previous; }
 });
 
 test('2. Configure service: editing a node writes through to the Architecture Model', async () => {
@@ -786,11 +834,24 @@ test('Send Request scales on canvas with no inspector; CloudWatch exposes policy
     await h.act(() => h.api().setSelectedNodeId('asg-alarm'));
     await h.act(() => [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Config')!.click());
     assert.ok(document.querySelector('[aria-label="Scaling policy type"]'));
-    assert.equal([...document.querySelectorAll('button')].some(b => b.textContent === 'Play scaling'), false);
-    await h.act(() => [...document.querySelectorAll('button')].find(b => b.textContent === 'Reset scaling')!.click());
+    assert.equal([...document.querySelectorAll('button')].some(b => b.textContent === 'Play scaling'), true);
+    assert.ok([...document.querySelectorAll('button')].some(b => b.textContent?.includes('Faster time')));
+    assert.equal((document.querySelector('[aria-label="Scaling policy type"]') as HTMLSelectElement).disabled, false);
     const policy = document.querySelector('[aria-label="Scaling policy type"]') as HTMLSelectElement;
     await h.act(() => { policy.value = 'target'; policy.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
     assert.equal(h.api().nodes.find(n => n.id === 'asg-group')!.data.customConfig!.asg.policyType, 'target');
+    assert.equal(h.api().nodes.some(n => n.data.customConfig?.asgInstance?.generated), false);
+    assert.equal(h.api().nodes.find(n => n.id === 'asg-group')!.data.customConfig!.asgRuntime, undefined);
+    assert.ok([...policy.options].some(option => option.value === 'step'));
+    assert.ok([...policy.options].some(option => option.value === 'scheduled'));
+    assert.equal([...document.querySelectorAll('button')].some(b => b.textContent?.trim() === 'More information'), false);
+    await h.act(() => { policy.value = 'scheduled'; policy.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+    const advance = () => [...document.querySelectorAll('button')].find(b => b.textContent === 'Advance one period')!;
+    await h.act(() => advance().click());
+    await h.act(() => advance().click());
+    assert.equal(h.api().nodes.filter(n => n.data.customConfig?.asgInstance?.generated).length, 2);
+    for (let i = 0; i < 3; i++) await h.act(() => advance().click());
+    assert.equal(h.api().nodes.filter(n => n.data.customConfig?.asgInstance?.generated).length, 0);
   } finally { await h.unmount(); }
 });
 
@@ -856,6 +917,50 @@ test('Reference library exports source-compatible JSON and loads an independent 
     await act(async () => apiRef.current!.loadTemplate(reference.id, reference));
     assert.deepEqual(apiRef.current!.scenario, reference.scenario);
     assert.notEqual(apiRef.current!.nodes, reference.nodes);
-    assert.ok(document.querySelector('[aria-label="Import reference JSON"]'));
+    // Import was removed - the JSON folder + rebuild is the only path to a permanent reference now.
+    assert.equal(document.querySelector('[aria-label="Import reference JSON"]'), null);
   } finally { await act(async () => root.unmount()); (window as any).showSaveFilePicker = originalPicker; (globalThis as any).localStorage = originalStorage; window.confirm = originalConfirm; }
+});
+
+test('Loaded lab/reference names become draft names; lab configuration links can be recreated safely', async () => {
+  const h = await mount(); const oldAlert = window.alert; const alerts: string[] = [];
+  window.alert = message => { alerts.push(String(message)); };
+  try {
+    const reference = COURSE_LABS.flatMap(lab => lab.references).find(ref => ref.id === 'lab3-two-tier')!;
+    await h.act(() => h.api().openLabReference(reference));
+    assert.equal(h.api().draftName, reference.title);
+    const ec2 = h.api().nodes.find(n => n.data.serviceId === 'ec2')!;
+    const ebs = h.api().nodes.find(n => n.data.serviceId === 'ebs')!;
+    await h.act(() => h.api().setEdges(previous => previous.filter(e => !(e.source === ec2.id && e.target === ebs.id))));
+    await h.act(() => h.api().onConnect({ source: ec2.id, target: ebs.id, sourceHandle: null, targetHandle: null }));
+    const edge = h.api().edges.find(e => e.source === ec2.id && e.target === ebs.id)!;
+    assert.ok(edge); assert.equal(edge.data?.relationship, 'manages'); assert.equal(edge.data?.referenceAnnotation, reference.id);
+    assert.deepEqual(alerts, []);
+    await h.act(() => h.api().updateEdgeData(edge.id, { relationship: 'request' }));
+    assert.equal(h.api().edges.find(e => e.id === edge.id)!.data?.relationship, 'manages');
+    const { REFERENCE_ARCHITECTURES } = await import('../../src/data/referenceArchitectures.ts');
+    await h.act(() => h.api().loadTemplate(REFERENCE_ARCHITECTURES[0].id));
+    assert.equal(h.api().draftName, REFERENCE_ARCHITECTURES[0].name);
+    assert.equal(JSON.parse(h.api().exportDraft()).state.draftName, REFERENCE_ARCHITECTURES[0].name);
+  } finally { window.alert = oldAlert; await h.unmount(); }
+});
+
+test('Lab 1 user IAM links illustrate authorization without replacing the S3 request or granting access', async () => {
+  const h = await mount(); const oldAlert = window.alert; const alerts: string[] = []; window.alert = message => { alerts.push(String(message)); };
+  try {
+    const reference = COURSE_LABS.flatMap(lab => lab.references).find(ref => ref.id === 'lab1-allow')!;
+    await h.act(() => h.api().openLabReference(reference));
+    await h.act(() => h.api().onConnect({ source: 'lab-user', target: 'lab-iam', sourceHandle: null, targetHandle: null }));
+    const edge = h.api().edges.find(e => e.source === 'lab-user' && e.target === 'lab-iam')!;
+    assert.ok(edge); assert.equal(edge.data?.relationship, 'authorization');
+    assert.deepEqual(alerts, []);
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().simulationResult!.success, true);
+    assert.equal(h.api().draftName, reference.title);
+    const denied = COURSE_LABS.flatMap(lab => lab.references).find(ref => ref.id === 'lab1-deny')!;
+    await h.act(() => h.api().openLabReference(denied));
+    await h.act(() => h.api().onConnect({ source: 'lab-user', target: 'lab-iam', sourceHandle: null, targetHandle: null }));
+    await h.act(() => h.api().runScenario());
+    assert.equal(h.api().simulationResult!.success, false, 'An authorization illustration must never grant access');
+  } finally { window.alert = oldAlert; await h.unmount(); }
 });

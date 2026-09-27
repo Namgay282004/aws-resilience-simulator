@@ -1,0 +1,1132 @@
+{
+  "id": "lab12-container-invalid",
+  "title": "Image definition names the wrong container",
+  "description": "Follow source, build artifacts, service roles and the supplied release configuration.",
+  "expected": "FAIL the container-name check.",
+  "nodes": [
+    {
+      "id": "lab-source",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "usms-pipeline-artifacts",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "versioning": true,
+          "region": "us-east-1",
+          "sourceKey": "source/usms-enrolment-src.zip"
+        },
+        "notes": "One versioned bucket holds the source ZIP and SourceOutput/BuildOutput artifacts."
+      }
+    },
+    {
+      "id": "lab-pipeline",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "codepipeline",
+        "label": "usms-enrolment-pipeline",
+        "category": "Developer Tools",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "region": "us-east-1",
+          "stages": [
+            "Source",
+            "Build",
+            "Deploy"
+          ],
+          "serviceRole": "usms-codepipeline-role"
+        }
+      }
+    },
+    {
+      "id": "lab-build",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "codebuild",
+        "label": "usms-enrolment-build",
+        "category": "Developer Tools",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "sourceType": "CODEPIPELINE",
+          "artifactType": "CODEPIPELINE",
+          "buildspec": "buildspec.yml",
+          "serviceRole": "usms-codebuild-role",
+          "containerName": "enrolment-api",
+          "imageDefinitions": [
+            {
+              "name": "wrong-container",
+              "imageUri": "000000000000.dkr.ecr.us-east-1.amazonaws.com/usms-enrolment:r7"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lab-pipeline-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-codepipeline-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-build-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-codebuild-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-build-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/aws/codebuild/usms-enrolment-build",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-registry",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "ecr_registry",
+        "label": "ECR · usms-enrolment",
+        "category": "Containers",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-deploy",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "codepipeline",
+        "label": "ECS standard deploy action",
+        "category": "Developer Tools",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "fileName": "imagedefinitions.json",
+          "containerName": "enrolment-api",
+          "cluster": "usms-ecs-cluster",
+          "service": "usms-enrolment-svc"
+        },
+        "notes": "Action inside the same pipeline; not a second pipeline. Registers a task revision and updates the service on AWS; not executed here."
+      }
+    },
+    {
+      "id": "lab-execution-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-ecs-exec-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Execution role pulls ECR images; the task role authorizes application API calls."
+      }
+    },
+    {
+      "id": "lab-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 180,
+        "y": 720
+      },
+      "style": {
+        "width": 1040,
+        "height": 1100
+      },
+      "data": {
+        "label": "usms-vpc",
+        "boundaryType": "vpc",
+        "width": 1040,
+        "height": 1100,
+        "cidr": "10.0.0.0/16"
+      }
+    },
+    {
+      "id": "lab-public-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 940
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-a · AZ-A",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.1.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-public-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 940
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-b · AZ-B",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.2.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-private-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 1260
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-a · AZ-A",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.3.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-private-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 1260
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-b · AZ-B",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.4.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-endpoint",
+      "type": "serviceNode",
+      "position": {
+        "x": 900,
+        "y": 1640
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "usms-s3-endpoint",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-client",
+      "type": "serviceNode",
+      "position": {
+        "x": 10,
+        "y": 1000
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Student browser",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 760
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "usms-igw",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-nat",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 1000
+      },
+      "data": {
+        "serviceId": "nat_gateway",
+        "label": "usms-nat",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-public-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 1640
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-public-rt → IGW",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: public subnets; default route to usms-igw. Live route-table selection is approximated."
+      }
+    },
+    {
+      "id": "lab-private-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 700,
+        "y": 1640
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-private-rt → NAT",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: private subnets; default route to usms-nat; S3 endpoint route."
+      }
+    },
+    {
+      "id": "lab-app-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 750
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-app-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "allowedProtocols": [
+          "HTTP",
+          "HTTPS"
+        ]
+      }
+    },
+    {
+      "id": "lab-db-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 910
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-db-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "securityGroupRules": {
+          "inbound": [
+            {
+              "protocol": "SQL",
+              "portRange": "ALL",
+              "source": {
+                "type": "securityGroup",
+                "securityGroupId": "lab-app-sg"
+              }
+            }
+          ],
+          "outbound": []
+        }
+      }
+    },
+    {
+      "id": "lab-web",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 1000
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "usms-web-01",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "lab-app-sg"
+        ],
+        "notes": "Instance profile: usms-ec2-app-profile. Bootstrap, EIP and AMI lifecycle are covered in the original lab."
+      }
+    },
+    {
+      "id": "lab-task-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 1080
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-enrolment-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "securityGroupRules": {
+          "inbound": [
+            {
+              "protocol": "HTTP",
+              "portRange": "80",
+              "source": {
+                "type": "securityGroup",
+                "securityGroupId": "lab-alb-sg"
+              }
+            }
+          ],
+          "outbound": []
+        }
+      }
+    },
+    {
+      "id": "lab-task-a",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 1340
+      },
+      "data": {
+        "serviceId": "ecs",
+        "label": "usms-enrolment-svc · task A",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "lab-task-sg"
+        ],
+        "customConfig": {
+          "ecs": {
+            "launchType": "FARGATE",
+            "networkMode": "awsvpc",
+            "desiredCount": 1,
+            "runningCount": 1,
+            "containerName": "enrolment-api"
+          }
+        },
+        "notes": "ECS task definition container enrolment-api; service usms-enrolment-svc. The pipeline changes its image, not its other task settings."
+      }
+    },
+    {
+      "id": "lab-task-b",
+      "type": "serviceNode",
+      "position": {
+        "x": 750,
+        "y": 1340
+      },
+      "data": {
+        "serviceId": "ecs",
+        "label": "usms-enrolment-svc · task B",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-B",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "lab-task-sg"
+        ],
+        "customConfig": {
+          "ecs": {
+            "launchType": "FARGATE",
+            "networkMode": "awsvpc",
+            "desiredCount": 1,
+            "runningCount": 1,
+            "containerName": "enrolment-api"
+          }
+        },
+        "notes": "ECS task definition container enrolment-api; service usms-enrolment-svc. The pipeline changes its image, not its other task settings."
+      }
+    },
+    {
+      "id": "lab-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 1340
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/usms/ecs/enrolment",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 750
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "Task role / execution role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "usms-ecs-task-role: application APIs. usms-ecs-exec-role: agent startup/logging. Startup is not simulated."
+      }
+    },
+    {
+      "id": "lab-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 750,
+        "y": 1000
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "usms-enrolment-alb · public A + B",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": true,
+        "securityGroupIds": [
+          "lab-alb-sg"
+        ],
+        "notes": "HTTP:80 → usms-enrolment-tg, IP targets. The /alb-health fixed response and registration timing are not simulated."
+      }
+    },
+    {
+      "id": "lab-alb-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 1250
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-alb-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "allowedProtocols": [
+          "HTTP"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-source-lab-pipeline",
+      "source": "lab-source",
+      "target": "lab-pipeline",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Versioned source ZIP"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-pipeline-lab-build",
+      "source": "lab-pipeline",
+      "target": "lab-build",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "SourceOutput → Build"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-lab-source",
+      "source": "lab-build",
+      "target": "lab-source",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "BuildOutput in artifact store"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-pipeline-role-lab-pipeline",
+      "source": "lab-pipeline-role",
+      "target": "lab-pipeline",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Service role"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-role-lab-build",
+      "source": "lab-build-role",
+      "target": "lab-build",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Build role"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-lab-build-logs",
+      "source": "lab-build",
+      "target": "lab-build-logs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Build logs"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-lab-registry",
+      "source": "lab-build",
+      "target": "lab-registry",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Build and push image"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-build-lab-deploy",
+      "source": "lab-build",
+      "target": "lab-deploy",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "BuildOutput / imagedefinitions.json"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-execution-role-lab-registry",
+      "source": "lab-execution-role",
+      "target": "lab-registry",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Image pull permissions"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-client-lab-alb",
+      "source": "lab-client",
+      "target": "lab-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-alb-lab-task-a",
+      "source": "lab-alb",
+      "target": "lab-task-a",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-alb-lab-task-b",
+      "source": "lab-alb",
+      "target": "lab-task-b",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-task-a-lab-logs",
+      "source": "lab-task-a",
+      "target": "lab-logs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500,
+        "traversal": "dependency"
+      }
+    },
+    {
+      "id": "lab-deploy-lab-task-a",
+      "source": "lab-deploy",
+      "target": "lab-task-a",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Update ECS service"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-deploy-lab-task-b",
+      "source": "lab-deploy",
+      "target": "lab-task-b",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Update ECS service"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab12-container-invalid",
+    "name": "Image definition names the wrong container",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-pipeline",
+    "trafficLevel": "normal"
+  },
+  "configurationChecks": [
+    {
+      "id": "source-versioning",
+      "nodeId": "lab-source",
+      "path": [
+        "customConfig",
+        "versioning"
+      ],
+      "operator": "equals",
+      "expected": true,
+      "reason": "An S3 pipeline source requires bucket versioning.",
+      "source": "https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-S3.html"
+    },
+    {
+      "id": "source-key",
+      "nodeId": "lab-source",
+      "path": [
+        "customConfig",
+        "sourceKey"
+      ],
+      "operator": "equals",
+      "expected": "source/usms-enrolment-src.zip",
+      "reason": "The course pipeline reads the enrolment source archive.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "buildspec",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "buildspec"
+      ],
+      "operator": "equals",
+      "expected": "buildspec.yml",
+      "reason": "The course uses buildspec.yml at the source root.",
+      "source": "https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html"
+    },
+    {
+      "id": "build-input",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "sourceType"
+      ],
+      "operator": "equals",
+      "expected": "CODEPIPELINE",
+      "reason": "The course CodeBuild project receives pipeline artifacts.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "build-output",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "artifactType"
+      ],
+      "operator": "equals",
+      "expected": "CODEPIPELINE",
+      "reason": "The course build returns its artifact to CodePipeline.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html"
+    },
+    {
+      "id": "stages",
+      "nodeId": "lab-pipeline",
+      "path": [
+        "customConfig",
+        "stages"
+      ],
+      "operator": "equals",
+      "expected": [
+        "Source",
+        "Build",
+        "Deploy"
+      ],
+      "reason": "Course stages must retain their declared order.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "image-file",
+      "nodeId": "lab-deploy",
+      "path": [
+        "customConfig",
+        "fileName"
+      ],
+      "operator": "equals",
+      "expected": "imagedefinitions.json",
+      "reason": "The course standard ECS deploy action reads imagedefinitions.json.",
+      "source": "https://docs.aws.amazon.com/codepipeline/latest/userguide/file-reference.html"
+    },
+    {
+      "id": "container-match",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "imageDefinitions",
+        "0",
+        "name"
+      ],
+      "operator": "equals",
+      "reason": "Image definition name must match the ECS task container name.",
+      "source": "https://docs.aws.amazon.com/codepipeline/latest/userguide/file-reference.html",
+      "otherNodeId": "lab-task-a",
+      "otherPath": [
+        "customConfig",
+        "ecs",
+        "containerName"
+      ]
+    },
+    {
+      "id": "image-uri",
+      "nodeId": "lab-build",
+      "path": [
+        "customConfig",
+        "imageDefinitions",
+        "0",
+        "imageUri"
+      ],
+      "operator": "equals",
+      "expected": "000000000000.dkr.ecr.us-east-1.amazonaws.com/usms-enrolment:r7",
+      "reason": "This supplied release snapshot deploys the r7 ECR image; tags can move, digests identify immutable content.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-source-lab-pipeline-relationship",
+      "nodeId": "lab-source",
+      "otherNodeId": "lab-pipeline",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-source → lab-pipeline relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-pipeline-lab-build-relationship",
+      "nodeId": "lab-pipeline",
+      "otherNodeId": "lab-build",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-pipeline → lab-build relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-build-lab-source-relationship",
+      "nodeId": "lab-build",
+      "otherNodeId": "lab-source",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build → lab-source relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-pipeline-role-lab-pipeline-relationship",
+      "nodeId": "lab-pipeline-role",
+      "otherNodeId": "lab-pipeline",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-pipeline-role → lab-pipeline relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-build-role-lab-build-relationship",
+      "nodeId": "lab-build-role",
+      "otherNodeId": "lab-build",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build-role → lab-build relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-build-lab-build-logs-relationship",
+      "nodeId": "lab-build",
+      "otherNodeId": "lab-build-logs",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build → lab-build-logs relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-build-lab-registry-relationship",
+      "nodeId": "lab-build",
+      "otherNodeId": "lab-registry",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build → lab-registry relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-build-lab-deploy-relationship",
+      "nodeId": "lab-build",
+      "otherNodeId": "lab-deploy",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-build → lab-deploy relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-execution-role-lab-registry-relationship",
+      "nodeId": "lab-execution-role",
+      "otherNodeId": "lab-registry",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-execution-role → lab-registry relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html"
+    },
+    {
+      "id": "lab-deploy-lab-task-a-relationship",
+      "nodeId": "lab-deploy",
+      "otherNodeId": "lab-task-a",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-deploy → lab-task-a relationship.",
+      "source": "https://docs.aws.amazon.com/codepipeline/latest/userguide/file-reference.html"
+    },
+    {
+      "id": "lab-deploy-lab-task-b-relationship",
+      "nodeId": "lab-deploy",
+      "otherNodeId": "lab-task-b",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-deploy → lab-task-b relationship.",
+      "source": "https://docs.aws.amazon.com/codepipeline/latest/userguide/file-reference.html"
+    }
+  ],
+  "simulationScope": "Partial configuration checks only. IAM service-role authorization, buildspec commands, Docker/ECR operations, task revision registration and rollback are not executed."
+}

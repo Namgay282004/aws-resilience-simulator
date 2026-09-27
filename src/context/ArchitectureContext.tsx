@@ -1,6 +1,7 @@
+import { labAnnotationProtocol } from '../engine/architecture/labConnections.ts';
 import { observeAlbRequests } from '../engine/scaling/albObservation.ts';
 import { resetAsg } from '../engine/scaling/asg.ts';
-import { checkConnection, connectionProtocols, interactionTransport, isManagementPair } from '../engine/architecture/connectionContracts.ts';
+import { checkConnection, connectionProtocols, interactionTransport, isManagementPair, isAuthorizationPair } from '../engine/architecture/connectionContracts.ts';
 import { parseDraft, serializeDraft } from '../engine/persistence/draft.ts';
 import type { Viewport } from '@xyflow/react';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
@@ -526,13 +527,15 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
       defaultProtocol = 'Object access';
     }
 
+    const authorization = isAuthorizationPair(sourceNode, targetNode);
     const management = isManagementPair(sourceNode, targetNode);
-    const relationship = management ? 'manages' : 'request';
-    const protocols: ProtocolType[] = management ? ['Event'] : connectionProtocols(sourceNode, targetNode);
+    const annotationProtocol = management ? undefined : labAnnotationProtocol(activeLabReference, sourceNode, targetNode);
+    const relationship = authorization ? 'authorization' : management || annotationProtocol ? 'manages' : 'request';
+    const protocols: ProtocolType[] = authorization ? ['Event'] : annotationProtocol ? [annotationProtocol] : management ? ['Event'] : connectionProtocols(sourceNode, targetNode);
     if (!protocols.length) { window.alert('Behavior not modeled or unsupported interaction for this pair. No request connection was created.'); return; }
     if (!protocols.includes(defaultProtocol)) defaultProtocol = protocols[0];
     const validation = checkConnection(sourceNode, targetNode, { protocol: defaultProtocol, relationship });
-    if (validation.status !== 'valid') { window.alert(validation.reason); return; }
+    if (validation.status !== 'valid' && !(annotationProtocol && validation.status === 'unknown')) { window.alert(validation.reason); return; }
     const newEdge: Edge<ConnectionData> = {
       ...connection,
       id: uniqueId(`edge-${connection.source}-${connection.target}`),
@@ -543,18 +546,19 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
       },
       data: {
         relationship,
-        label: management ? (sourceNode.data.serviceId === 'alb' ? 'ALB request metrics' : 'Management') : undefined,
+        label: authorization ? 'IAM authorization (not request traffic)' : annotationProtocol ? 'Lab configuration link (not request traffic)' : management ? (sourceNode.data.serviceId === 'alb' ? 'ALB request metrics' : 'Management') : undefined,
+        referenceAnnotation: !authorization && annotationProtocol ? activeLabReference?.id : undefined,
         protocol: defaultProtocol,
         transport: interactionTransport(defaultProtocol),
         lineStyle: 'straight',
-        interactionType: management ? 'event' : 'synchronous',
-        isCriticalDependency: !management,
+        interactionType: authorization || management || annotationProtocol ? 'event' : 'synchronous',
+        isCriticalDependency: !(authorization || management || annotationProtocol),
         timeoutMs: 2500
       }
     };
 
     setEdges((eds) => addEdge(newEdge as any, eds as any) as any);
-  }, [nodes, edges, setEdges]);
+  }, [nodes, edges, setEdges, activeLabReference]);
 
   // Add a new node to canvas
   const addServiceNode = useCallback((
@@ -798,7 +802,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
     const data = { ...edge.data, ...partialData, ...(partialData.protocol ? { transport: interactionTransport(partialData.protocol) } : {}) } as ConnectionData;
     if (['protocol', 'action', 'transport', 'relationship'].some(key => key in partialData)) {
       const result = checkConnection(nodes.find(n => n.id === edge.source), nodes.find(n => n.id === edge.target), data);
-      if (result.status === 'invalid') { window.alert(result.reason); return; }
+      if (result.status === 'invalid' || (edge.data?.referenceAnnotation && data.relationship !== 'manages' && result.status !== 'valid')) { window.alert(result.reason); return; }
     }
     setEdges(previous => previous.map(e => e.id === id ? { ...e, data } : e));
   }, [edges, nodes, setEdges]);
@@ -985,6 +989,7 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   const openLabReference = useCallback((reference: LabReference, run = false) => {
     const snapshot = structuredClone(reference);
     setActiveLabReference(snapshot);
+    setDraftName(snapshot.title.slice(0, 120));
     setDraftViewport(null);
     setCanvasRevision(value => value + 1);
     setNodes(snapshot.nodes);
@@ -1006,6 +1011,9 @@ export const ArchitectureProvider: React.FC<{ children: ReactNode }> = ({ childr
   const loadTemplate = useCallback((templateId: string, reference?: ReferenceArchitecture) => {
     const template = structuredClone(reference ?? REFERENCE_ARCHITECTURES.find(t => t.id === templateId));
     if (!template) return;
+    setDraftName(template.name.slice(0, 120));
+    setIsPlaying(false);
+    setHoveredStepIndex(null);
 
     setActiveLabReference(null);
     setDraftViewport(null);

@@ -243,8 +243,8 @@ export const ServiceInspector: React.FC = () => {
               onChange={(e) => updateEdgeData(selectedEdge.id, { protocol: e.target.value as ProtocolType })}
               className="w-full px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-circuit-600 font-mono"
             >
-              {!(relationshipKind(selectedEdge.data) === 'manages' ? ['Event'] : connectionProtocols(sourceNode, targetNode)).includes(edgeData.protocol) && <option value={edgeData.protocol}>Unsupported: {edgeData.protocol}</option>}
-              {(relationshipKind(selectedEdge.data) === 'manages' ? ['Event'] : connectionProtocols(sourceNode, targetNode)).map(protocol => <option key={protocol} value={protocol}>{protocol}</option>)}
+              {!(['manages', 'authorization'].includes(relationshipKind(selectedEdge.data)) ? [selectedEdge.data?.referenceAnnotation ? edgeData.protocol : 'Event'] : connectionProtocols(sourceNode, targetNode)).includes(edgeData.protocol) && <option value={edgeData.protocol}>Unsupported: {edgeData.protocol}</option>}
+              {(['manages', 'authorization'].includes(relationshipKind(selectedEdge.data)) ? [selectedEdge.data?.referenceAnnotation ? edgeData.protocol : 'Event'] : connectionProtocols(sourceNode, targetNode)).map(protocol => <option key={protocol} value={protocol}>{protocol}</option>)}
             </select>
           </div>
 
@@ -262,6 +262,7 @@ export const ServiceInspector: React.FC = () => {
               onChange={e => updateEdgeData(selectedEdge.id, { relationship: e.target.value as RelationshipKind })}>
               <option value="request">Request path</option>
               <option value="dependency">Dependency call</option>
+              <option value="authorization">Authorization illustration</option>
               <option value="manages">Manages resource</option>
               <option value="route-association">Route association</option>
               <option value="target-registration">Target registration</option>
@@ -1007,7 +1008,7 @@ export const ServiceInspector: React.FC = () => {
   return (
     <aside className="w-80 bg-white border-l border-slate-200 flex flex-col h-full flex-shrink-0 z-20 shadow-md overflow-hidden">
       {serviceExplorerNodeId === selectedNode.id && nodeData.serviceId === 'ecs' && <EcsExplorer key={selectedNode.id} nodeId={selectedNode.id} nodes={nodes} edges={edges} onUpdate={updateNodeData} onClose={() => setServiceExplorerNodeId(null)} />}
-      {serviceExplorerNodeId === selectedNode.id && BEHAVIOR_EXPLORER_SERVICES.includes(nodeData.serviceId) && <ServiceBehaviorExplorer key={selectedNode.id} node={selectedNode} nodes={nodes} edges={edges} onUpdate={updateNodeData} onClose={() => setServiceExplorerNodeId(null)} />}
+      {!nodeData.customConfig?.canvasScalingDemo && serviceExplorerNodeId === selectedNode.id && BEHAVIOR_EXPLORER_SERVICES.includes(nodeData.serviceId) && <ServiceBehaviorExplorer key={selectedNode.id} node={selectedNode} nodes={nodes} edges={edges} onUpdate={updateNodeData} onClose={() => setServiceExplorerNodeId(null)} />}
       {/* Header */}
       <div className="p-4 border-b border-slate-200 bg-white">
         <div className="flex items-start justify-between gap-2">
@@ -1030,7 +1031,7 @@ export const ServiceInspector: React.FC = () => {
           </button>
         </div>
 
-        {(nodeData.serviceId === 'ecs' || BEHAVIOR_EXPLORER_SERVICES.includes(nodeData.serviceId)) && <button onClick={() => setServiceExplorerNodeId(selectedNode.id)} className="mt-3 w-full min-h-11 flex items-center justify-center gap-2 rounded-lg border border-circuit-600 bg-circuit-50 text-circuit-800 text-sm font-semibold hover:bg-circuit-100 focus-visible:outline-circuit-600">
+        {!nodeData.customConfig?.canvasScalingDemo && (nodeData.serviceId === 'ecs' || BEHAVIOR_EXPLORER_SERVICES.includes(nodeData.serviceId)) && <button onClick={() => setServiceExplorerNodeId(selectedNode.id)} className="mt-3 w-full min-h-11 flex items-center justify-center gap-2 rounded-lg border border-circuit-600 bg-circuit-50 text-circuit-800 text-sm font-semibold hover:bg-circuit-100 focus-visible:outline-circuit-600">
           <Maximize2 size={16} aria-hidden="true" /> More information
         </button>}
         {/* Status Bar with Simulate Failure toggle */}

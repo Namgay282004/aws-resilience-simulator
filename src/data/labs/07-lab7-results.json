@@ -1,0 +1,337 @@
+{
+  "id": "lab7-results",
+  "title": "Internal /results/ request",
+  "description": "One selected internal application path through workload abstractions; other services remain visible for comparison.",
+  "expected": "SUCCESS on the selected internal path.",
+  "simulationScope": "Approximate workload connectivity and health only. The selected branch is supplied by this reference, not resolved from the URL or Kubernetes DNS. Replica counts are snapshots; no scheduler, HPA, Ingress controller or pod load balancing was executed.",
+  "nodes": [
+    {
+      "id": "lab-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 180,
+        "y": 20
+      },
+      "style": {
+        "width": 1040,
+        "height": 1100
+      },
+      "data": {
+        "label": "usms-vpc",
+        "boundaryType": "vpc",
+        "width": 1040,
+        "height": 1100,
+        "cidr": "10.0.0.0/16"
+      }
+    },
+    {
+      "id": "lab-public-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 240
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-a · AZ-A",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.1.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-public-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 240
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-b · AZ-B",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.2.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-private-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 560
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-a · AZ-A",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.3.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-private-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 560
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-b · AZ-B",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.4.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-endpoint",
+      "type": "serviceNode",
+      "position": {
+        "x": 900,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "usms-s3-endpoint",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 60
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "usms-igw",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-nat",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "nat_gateway",
+        "label": "usms-nat",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-public-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-public-rt → IGW",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: public subnets; default route to usms-igw. Live route-table selection is approximated."
+      }
+    },
+    {
+      "id": "lab-private-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 700,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-private-rt → NAT",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: private subnets; default route to usms-nat; S3 endpoint route."
+      }
+    },
+    {
+      "id": "lab-gateway",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 620
+      },
+      "data": {
+        "serviceId": "eks",
+        "label": "usms-gateway · workload abstraction",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Kubernetes Deployment + ClusterIP Service, namespace usms; 1 supplied replicas. EKS icon represents an aggregated workload, not a separate EKS cluster. DNS name: usms-gateway.usms.svc.cluster.local. DNS and endpoint selection are not executed."
+      }
+    },
+    {
+      "id": "lab-enrolment",
+      "type": "serviceNode",
+      "position": {
+        "x": 460,
+        "y": 700
+      },
+      "data": {
+        "serviceId": "eks",
+        "label": "usms-enrolment · workload abstraction",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 2,
+        "multiAz": false,
+        "notes": "Kubernetes Deployment + ClusterIP Service, namespace usms; 2 supplied replicas. EKS icon represents an aggregated workload, not a separate EKS cluster. DNS name: usms-enrolment.usms.svc.cluster.local. DNS and endpoint selection are not executed."
+      }
+    },
+    {
+      "id": "lab-results",
+      "type": "serviceNode",
+      "position": {
+        "x": 750,
+        "y": 700
+      },
+      "data": {
+        "serviceId": "eks",
+        "label": "usms-results · workload abstraction",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-B",
+        "subnet": "private",
+        "replicas": 2,
+        "multiAz": false,
+        "notes": "Kubernetes Deployment + ClusterIP Service, namespace usms; 2 supplied replicas. EKS icon represents an aggregated workload, not a separate EKS cluster. DNS name: usms-results.usms.svc.cluster.local. DNS and endpoint selection are not executed."
+      }
+    },
+    {
+      "id": "lab-cluster",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 50
+      },
+      "data": {
+        "serviceId": "eks",
+        "label": "usms-eks-cluster · control plane reference",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "One cluster across the four Lab 2 subnets. usms-eks-nodes: private subnets, desired 2 workers. Control-plane creation, scheduling, DNS, ConfigMaps and Secrets are not executed.",
+        "customConfig": {
+          "referenceOnly": true,
+          "managedNodeGroup": {
+            "name": "usms-eks-nodes",
+            "desiredSize": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "lab-cluster-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 250
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-eks-cluster-role / node-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Cluster role trusts eks.amazonaws.com; node role trusts ec2.amazonaws.com. Reference metadata only; Kubernetes RBAC and role creation are not simulated."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-gateway-lab-results",
+      "source": "lab-gateway",
+      "target": "lab-results",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-gateway-lab-enrolment",
+      "source": "lab-gateway",
+      "target": "lab-enrolment",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500,
+        "traversal": "dependency"
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab7-results",
+    "name": "lab7-results",
+    "method": "GET",
+    "path": "/results/",
+    "startNodeId": "lab-gateway",
+    "trafficLevel": "normal"
+  }
+}

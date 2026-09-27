@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ExternalLink, BookOpen } from 'lucide-react';
+import { X, ExternalLink, BookOpen, Download } from 'lucide-react';
 import { COURSE_LABS } from '../../data/courseLabs.ts';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
+import { saveJsonFile } from '../../utils/saveJson.ts';
 
 export function LabsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [selected, setSelected] = useState(COURSE_LABS[0].id);
+  const [message, setMessage] = useState('');
   const { openLabReference } = useArchitecture();
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -45,8 +47,16 @@ export function LabsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
           <div className="space-y-3">{lab.references.map(reference => <article key={reference.id} className="border rounded-lg p-4">
             <h4 className="font-semibold">{reference.title}</h4><p className="text-sm text-slate-600 mt-1">{reference.description}</p>
             <p className="text-sm mt-2"><strong>Expected: </strong>{reference.expected}</p>
-            <div className="flex gap-3 mt-3"><button className="border rounded px-3 py-2 text-sm hover:bg-slate-50" onClick={() => { openLabReference(reference); onClose(); }}>Load reference</button><button className="bg-blue-600 text-white rounded px-3 py-2 text-sm hover:bg-blue-700" onClick={() => { openLabReference(reference, true); onClose(); }}>{reference.configurationChecks ? 'Check reference configuration' : 'Run reference simulation'}</button></div>
+            <div className="flex gap-3 mt-3 items-center">
+              <button className="border rounded px-3 py-2 text-sm hover:bg-slate-50" onClick={() => { openLabReference(reference); onClose(); }}>Load reference</button>
+              <button className="bg-blue-600 text-white rounded px-3 py-2 text-sm hover:bg-blue-700" onClick={() => { openLabReference(reference, true); onClose(); }}>{reference.configurationChecks ? 'Check reference configuration' : 'Run reference simulation'}</button>
+              <button className="border rounded px-2 py-2 text-sm hover:bg-slate-50" aria-label={`Download lab reference ${reference.title}`} title="Download this reference's JSON. Edit it and place it in src/data/labs/ to make a permanent change; the file needs to keep its unique id."
+                onClick={async () => { try { await saveJsonFile(JSON.stringify(reference, null, 2), `${String(lab.number).padStart(2, '0')}-${reference.id}.json`, true); } catch (error) { setMessage(String(error)); } }}>
+                <Download size={14} />
+              </button>
+            </div>
           </article>)}</div>
+          {message && <p role="status" className="text-xs bg-slate-100 p-2 rounded mt-3">{message}</p>}
         </section>
       </div>
     </div>

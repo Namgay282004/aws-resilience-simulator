@@ -19,6 +19,13 @@ The DIT reference's admin-browser edge now explicitly targets its API Gateway at
 than entering a shared client node whose lower-numbered branch leads to the portal. This preserves
 the reference's intended admin destination under the new numbering behavior.
 
+Playback advances through the generated simulation trace in order. It does not independently
+sort the animation by connection number. The edge inspector's numeric `stepNumber` controls
+priority; numbers typed into the free-text label do not. During playback the edge badge displays
+the generated timeline step number, which can differ from the saved connection priority because
+the trace includes intermediate checks and responses. The saved priority is unchanged.
+
 Tests: `test/connection-order.test.ts` covers deterministic stable ordering, unchanged unnumbered
-behavior, live branch selection, adapter precedence and healthy-target failover. Full suite:
-450 passing tests; production build passes.
+behavior, live branch selection, adapter precedence and healthy-target failover. The UI integration
+suite also verifies that playback highlights the selected lower-numbered branch and dims the
+unselected branch. Rechecked 2026-09-28: full suite 475 passing (443 engine/conformance +32 UI).

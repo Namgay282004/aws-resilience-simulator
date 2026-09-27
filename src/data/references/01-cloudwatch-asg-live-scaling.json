@@ -1,27 +1,27 @@
 {
   "id": "cloudwatch-asg-live-scaling",
-  "name": "CloudWatch → ASG: Live EC2 Scale-Out",
+  "name": "CloudWatch \u2192 ASG: Live EC2 Scale-Out",
   "category": "Compute & Auto Scaling",
   "difficulty": "Intermediate",
-  "description": "Use Send Request through the internal ALB twice at Normal traffic. Each run represents 120 requests over one minute; 60 requests per initial target exceeds the threshold of 50. A new EC2 appears directly on the canvas. Select CloudWatch → Config to change policy type. Watch Launching → InService, cooldown, and the maximum of four instances. Reset scaling removes generated instances. Traffic batches are synthetic teaching inputs, not measured AWS metrics.",
-  "learningOutcome": "CloudWatch alarm → simple scaling policy → desired capacity → instance launch/warmup → eligible ALB target. Scaling is real persisted simulator state, not a walkthrough. One subnet; no scale-in or ECS scheduling.",
+  "description": "Live canvas demo: select CloudWatch \u2192 Config to choose target tracking, step scaling, scheduled scaling, or simple scaling. Send Request at Normal traffic twice to breach the initial threshold (120 requests / 2 targets = 60 > 50). EC2 instances appear in the subnet. Scheduled actions use Advance one period / Play scaling independently of requests. Reset scaling before changing policy. Synthetic traffic and accelerated time are teaching inputs.",
+  "learningOutcome": "Observe alarm evaluation, desired capacity, EC2 launch and warmup directly on the canvas. Compare proportional target tracking, threshold breach bands, and time-based capacity changes. Initial two instances are retained; target tracking and schedules can remove generated instances.",
   "nodes": [
     {
       "id": "asg-vpc",
       "type": "boundaryNode",
       "position": {
-        "x": 380,
+        "x": 350,
         "y": 0
       },
       "style": {
-        "width": 760,
+        "width": 860,
         "height": 610
       },
       "data": {
-        "label": "Demo VPC · 10.40.0.0/16",
+        "label": "Demo VPC \u00b7 10.40.0.0/16",
         "boundaryType": "vpc",
         "cidr": "10.40.0.0/16",
-        "width": 760,
+        "width": 860,
         "height": 610
       }
     },
@@ -34,14 +34,14 @@
         "y": 60
       },
       "style": {
-        "width": 700,
+        "width": 800,
         "height": 510
       },
       "data": {
-        "label": "Private application subnet · 10.40.1.0/24",
+        "label": "Private application subnet \u00b7 10.40.1.0/24",
         "boundaryType": "private_subnet",
         "cidr": "10.40.1.0/24",
-        "width": 700,
+        "width": 800,
         "height": 510
       }
     },
@@ -49,12 +49,12 @@
       "id": "asg-alarm",
       "type": "serviceNode",
       "position": {
-        "x": 20,
-        "y": 40
+        "x": 30,
+        "y": 80
       },
       "data": {
         "serviceId": "cloudwatch",
-        "label": "ALB requests · CloudWatch",
+        "label": "ALB requests \u00b7 CloudWatch",
         "category": "Compute",
         "health": "healthy",
         "az": "AZ-A",
@@ -64,7 +64,8 @@
         "customConfig": {
           "threshold": 50,
           "metricValue": 90,
-          "metricName": "Simulated ALBRequestCountPerTarget"
+          "metricName": "Simulated ALBRequestCountPerTarget",
+          "canvasScalingDemo": true
         }
       }
     },
@@ -72,8 +73,8 @@
       "id": "asg-group",
       "type": "serviceNode",
       "position": {
-        "x": 210,
-        "y": 180
+        "x": 30,
+        "y": 300
       },
       "data": {
         "serviceId": "ec2_auto_scaling",
@@ -103,8 +104,30 @@
             "cooldownSeconds": 120,
             "metricSource": "alb",
             "policyType": "simple",
-            "targetValue": 50
-          }
+            "targetValue": 50,
+            "scaleInEnabled": true,
+            "stepBands": [
+              {
+                "above": 0,
+                "adjustment": 1
+              },
+              {
+                "above": 50,
+                "adjustment": 2
+              }
+            ],
+            "scheduledActions": [
+              {
+                "at": 120,
+                "desired": 4
+              },
+              {
+                "at": 300,
+                "desired": 2
+              }
+            ]
+          },
+          "canvasScalingDemo": true
         }
       }
     },
@@ -112,8 +135,8 @@
       "id": "asg-alb",
       "type": "serviceNode",
       "position": {
-        "x": 440,
-        "y": 60
+        "x": 330,
+        "y": 40
       },
       "data": {
         "serviceId": "alb",
@@ -124,7 +147,14 @@
         "subnet": "private",
         "replicas": 1,
         "multiAz": false,
-        "customConfig": {}
+        "customConfig": {
+          "canvasScalingDemo": true
+        },
+        "networkIdentity": {
+          "vpcId": "asg-vpc",
+          "subnetId": "asg-subnet",
+          "privateIp": "10.40.1.5"
+        }
       },
       "parentId": "asg-subnet"
     },
@@ -133,18 +163,20 @@
       "type": "serviceNode",
       "position": {
         "x": 30,
-        "y": 60
+        "y": 190
       },
       "data": {
         "serviceId": "ec2",
-        "label": "Web EC2 1 · launch blueprint",
+        "label": "Web EC2 1 \u00b7 launch blueprint",
         "category": "Compute",
         "health": "healthy",
         "az": "AZ-A",
         "subnet": "private",
         "replicas": 1,
         "multiAz": false,
-        "customConfig": {},
+        "customConfig": {
+          "canvasScalingDemo": true
+        },
         "networkIdentity": {
           "vpcId": "asg-vpc",
           "subnetId": "asg-subnet",
@@ -158,7 +190,7 @@
       "type": "serviceNode",
       "position": {
         "x": 210,
-        "y": 60
+        "y": 190
       },
       "data": {
         "serviceId": "ec2",
@@ -169,7 +201,9 @@
         "subnet": "private",
         "replicas": 1,
         "multiAz": false,
-        "customConfig": {},
+        "customConfig": {
+          "canvasScalingDemo": true
+        },
         "networkIdentity": {
           "vpcId": "asg-vpc",
           "subnetId": "asg-subnet",
@@ -199,7 +233,7 @@
       "target": "asg-group",
       "data": {
         "protocol": "Event",
-        "label": "Alarm action · simple scaling",
+        "label": "Scaling policy / scheduled capacity",
         "relationship": "manages"
       }
     },

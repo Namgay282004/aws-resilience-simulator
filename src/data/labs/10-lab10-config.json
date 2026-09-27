@@ -1,0 +1,624 @@
+{
+  "id": "lab10-config",
+  "title": "Edge and regional Lambda configuration",
+  "description": "Inspect two edge associations and the separate S3 → regional notifier path.",
+  "expected": "PASS the listed configuration checks; no function code is executed.",
+  "nodes": [
+    {
+      "id": "lab-viewer",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Student browser",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-cdn",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "cloudfront",
+        "label": "usms-transcript-cdn",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Viewer-request runs before cache lookup; origin-response runs after an origin reply. Associations are configuration only."
+      }
+    },
+    {
+      "id": "lab-edge-viewer",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "usms-edge-viewer-request",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "region": "us-east-1",
+          "version": "1",
+          "architecture": "x86_64",
+          "environment": {},
+          "vpcAttached": false,
+          "trigger": "viewer-request",
+          "trustPrincipals": [
+            "lambda.amazonaws.com",
+            "edgelambda.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "id": "lab-bucket",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "usms-student-data",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "region": "us-east-1",
+          "blockPublicAccess": true,
+          "notification": {
+            "event": "s3:ObjectCreated:*",
+            "prefix": "transcripts/",
+            "suffix": ".json",
+            "target": "usms-transcript-notifier:live"
+          }
+        },
+        "notes": "Private S3 origin. CloudFront origin access authorization is outside these bounded checks."
+      }
+    },
+    {
+      "id": "lab-edge-response",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "usms-edge-origin-response",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "region": "us-east-1",
+          "version": "1",
+          "architecture": "x86_64",
+          "environment": {},
+          "vpcAttached": false,
+          "trigger": "origin-response",
+          "trustPrincipals": [
+            "lambda.amazonaws.com",
+            "edgelambda.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "id": "lab-notifier",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "usms-transcript-notifier:live",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "region": "us-east-1",
+          "alias": "live",
+          "executionRole": "usms-lambda-exec-role"
+        },
+        "notes": "Separate regional S3-triggered function. Invocation resource policy and handler execution are not evaluated here."
+      }
+    },
+    {
+      "id": "lab-notifier-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 1140,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/aws/lambda/usms-transcript-notifier",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-lambda-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "Lambda execution roles",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Edge trust: lambda.amazonaws.com + edgelambda.amazonaws.com. Regional notifier uses usms-lambda-exec-role. Roles do not grant S3 permission to invoke the function."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-viewer-lab-cdn",
+      "source": "lab-viewer",
+      "target": "lab-cdn",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Viewer request"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-cdn-lab-edge-viewer",
+      "source": "lab-cdn",
+      "target": "lab-edge-viewer",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "viewer-request association"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-cdn-lab-bucket",
+      "source": "lab-cdn",
+      "target": "lab-bucket",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Private origin"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-cdn-lab-edge-response",
+      "source": "lab-cdn",
+      "target": "lab-edge-response",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "origin-response association"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-bucket-lab-notifier",
+      "source": "lab-bucket",
+      "target": "lab-notifier",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "ObjectCreated · transcripts/*.json"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-notifier-lab-notifier-logs",
+      "source": "lab-notifier",
+      "target": "lab-notifier-logs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Regional logs"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-lambda-role-lab-notifier",
+      "source": "lab-lambda-role",
+      "target": "lab-notifier",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Execution role"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab10-config",
+    "name": "lab10-config",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-cdn",
+    "trafficLevel": "normal"
+  },
+  "configurationChecks": [
+    {
+      "id": "lab-edge-viewer-region",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "region"
+      ],
+      "operator": "equals",
+      "expected": "us-east-1",
+      "reason": "Lambda@Edge functions must be in us-east-1.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-viewer-version",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "version"
+      ],
+      "operator": "numberedVersion",
+      "reason": "Lambda@Edge requires a numbered version, not $LATEST or an alias.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-viewer-vpc",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "vpcAttached"
+      ],
+      "operator": "equals",
+      "expected": false,
+      "reason": "Lambda@Edge cannot use a VPC attachment.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-viewer-environment",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "environment"
+      ],
+      "operator": "equals",
+      "expected": {},
+      "reason": "Lambda@Edge does not support user environment variables.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-viewer-architecture",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "architecture"
+      ],
+      "operator": "equals",
+      "expected": "x86_64",
+      "reason": "Lambda@Edge does not support arm64.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-viewer-lambda.amazonaws.com",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "trustPrincipals"
+      ],
+      "operator": "includes",
+      "expected": "lambda.amazonaws.com",
+      "reason": "Edge role trust must include lambda.amazonaws.com; this checks declared principals, not full IAM authorization.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-viewer-edgelambda.amazonaws.com",
+      "nodeId": "lab-edge-viewer",
+      "path": [
+        "customConfig",
+        "trustPrincipals"
+      ],
+      "operator": "includes",
+      "expected": "edgelambda.amazonaws.com",
+      "reason": "Edge role trust must include edgelambda.amazonaws.com; this checks declared principals, not full IAM authorization.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-region",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "region"
+      ],
+      "operator": "equals",
+      "expected": "us-east-1",
+      "reason": "Lambda@Edge functions must be in us-east-1.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-version",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "version"
+      ],
+      "operator": "numberedVersion",
+      "reason": "Lambda@Edge requires a numbered version, not $LATEST or an alias.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-vpc",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "vpcAttached"
+      ],
+      "operator": "equals",
+      "expected": false,
+      "reason": "Lambda@Edge cannot use a VPC attachment.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-environment",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "environment"
+      ],
+      "operator": "equals",
+      "expected": {},
+      "reason": "Lambda@Edge does not support user environment variables.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-architecture",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "architecture"
+      ],
+      "operator": "equals",
+      "expected": "x86_64",
+      "reason": "Lambda@Edge does not support arm64.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-lambda.amazonaws.com",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "trustPrincipals"
+      ],
+      "operator": "includes",
+      "expected": "lambda.amazonaws.com",
+      "reason": "Edge role trust must include lambda.amazonaws.com; this checks declared principals, not full IAM authorization.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "lab-edge-response-edgelambda.amazonaws.com",
+      "nodeId": "lab-edge-response",
+      "path": [
+        "customConfig",
+        "trustPrincipals"
+      ],
+      "operator": "includes",
+      "expected": "edgelambda.amazonaws.com",
+      "reason": "Edge role trust must include edgelambda.amazonaws.com; this checks declared principals, not full IAM authorization.",
+      "source": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-edge-function-restrictions.html"
+    },
+    {
+      "id": "notification-region",
+      "nodeId": "lab-notifier",
+      "path": [
+        "customConfig",
+        "region"
+      ],
+      "operator": "equals",
+      "reason": "S3 and its Lambda notification destination must share a Region.",
+      "source": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html",
+      "otherNodeId": "lab-bucket",
+      "otherPath": [
+        "customConfig",
+        "region"
+      ]
+    },
+    {
+      "id": "notification-target",
+      "nodeId": "lab-bucket",
+      "path": [
+        "customConfig",
+        "notification",
+        "target"
+      ],
+      "operator": "equals",
+      "expected": "usms-transcript-notifier:live",
+      "reason": "Course notification targets the regional live alias.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "notification-event",
+      "nodeId": "lab-bucket",
+      "path": [
+        "customConfig",
+        "notification",
+        "event"
+      ],
+      "operator": "equals",
+      "expected": "s3:ObjectCreated:*",
+      "reason": "Course uploads trigger ObjectCreated notifications.",
+      "source": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html"
+    },
+    {
+      "id": "notification-prefix",
+      "nodeId": "lab-bucket",
+      "path": [
+        "customConfig",
+        "notification",
+        "prefix"
+      ],
+      "operator": "equals",
+      "expected": "transcripts/",
+      "reason": "Course notification is restricted to transcript keys.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "notification-suffix",
+      "nodeId": "lab-bucket",
+      "path": [
+        "customConfig",
+        "notification",
+        "suffix"
+      ],
+      "operator": "equals",
+      "expected": ".json",
+      "reason": "Course notification is restricted to JSON objects.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-viewer-lab-cdn-relationship",
+      "nodeId": "lab-viewer",
+      "otherNodeId": "lab-cdn",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-viewer → lab-cdn relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-cdn-lab-edge-viewer-relationship",
+      "nodeId": "lab-cdn",
+      "otherNodeId": "lab-edge-viewer",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-cdn → lab-edge-viewer relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-cdn-lab-bucket-relationship",
+      "nodeId": "lab-cdn",
+      "otherNodeId": "lab-bucket",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-cdn → lab-bucket relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-cdn-lab-edge-response-relationship",
+      "nodeId": "lab-cdn",
+      "otherNodeId": "lab-edge-response",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-cdn → lab-edge-response relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-bucket-lab-notifier-relationship",
+      "nodeId": "lab-bucket",
+      "otherNodeId": "lab-notifier",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-bucket → lab-notifier relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-notifier-lab-notifier-logs-relationship",
+      "nodeId": "lab-notifier",
+      "otherNodeId": "lab-notifier-logs",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-notifier → lab-notifier-logs relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    },
+    {
+      "id": "lab-lambda-role-lab-notifier-relationship",
+      "nodeId": "lab-lambda-role",
+      "otherNodeId": "lab-notifier",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-lambda-role → lab-notifier relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html"
+    }
+  ],
+  "simulationScope": "Partial configuration validation only. No authentication handler, cache, OAC/bucket policy, invocation permission, event delivery or logging is executed."
+}

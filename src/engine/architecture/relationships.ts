@@ -1,5 +1,5 @@
 /** Relationship meaning is independent of line geometry and request protocol. */
-export type RelationshipKind = 'request' | 'dependency' | 'manages' | 'route-association' | 'target-registration';
+export type RelationshipKind = 'authorization' | 'request' | 'dependency' | 'manages' | 'route-association' | 'target-registration';
 interface RelationshipData {
   relationship?: RelationshipKind;
   traversal?: 'forward' | 'dependency';

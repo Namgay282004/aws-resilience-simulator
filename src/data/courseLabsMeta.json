@@ -1,0 +1,200 @@
+[
+  {
+    "id": "dso303-1",
+    "number": 1,
+    "title": "IAM foundation",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-01-IAM.html",
+    "objectives": [
+      "Explore USMS users, groups and roles.",
+      "Compare scoped access with an explicit deny."
+    ],
+    "limitations": "Effective policies are evaluated; group administration, policy versions, environment persistence and human role assumption are not reproduced. S3 is a policy-test resource for the later hand-off.",
+    "referenceIds": [
+      "lab1-allow",
+      "lab1-deny"
+    ]
+  },
+  {
+    "id": "dso303-2",
+    "number": 2,
+    "title": "VPC and networking",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-02-VPC.html",
+    "objectives": [
+      "Inspect the two-AZ subnet plan, NAT and route references.",
+      "Follow a private S3 endpoint request."
+    ],
+    "limitations": "Probe EC2/S3 resources are teaching aids beyond the network-only lab. Route tables are reference metadata; full packet routing and custom NACL exercises are not covered.",
+    "referenceIds": [
+      "lab2-endpoint"
+    ]
+  },
+  {
+    "id": "dso303-3",
+    "number": 3,
+    "title": "EC2 and VPC",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-03-EC2.html",
+    "objectives": [
+      "Connect public web and private database-tier EC2 instances.",
+      "Change the database security group and observe denial."
+    ],
+    "limitations": "EBS mounting, bootstrapping, AMI creation, key pairs and IP lifecycle remain in the instructions. The SQL request is an abstract connectivity exercise; PostgreSQL port 5432 and database execution are not validated.",
+    "referenceIds": [
+      "lab3-two-tier",
+      "lab3-blocked"
+    ]
+  },
+  {
+    "id": "dso303-4",
+    "number": 4,
+    "title": "ECS and Fargate",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-04-ECS.html",
+    "objectives": [
+      "Reach private awsvpc tasks from the web tier.",
+      "Distinguish running tasks from desired capacity and task/execution roles."
+    ],
+    "limitations": "Running-task and SG behavior only. Image pulls, deployment revisions, logging and the scaling exercises on this page are not executed.",
+    "referenceIds": [
+      "lab4-private-tasks"
+    ]
+  },
+  {
+    "id": "dso303-5",
+    "number": 5,
+    "title": "ALB front door",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-05-ALB.html",
+    "objectives": [
+      "Reach ECS through the ALB security group.",
+      "Observe selection of a surviving target."
+    ],
+    "limitations": "Listener rules, health-check timing and dynamic target registration are not simulated. Both-unhealthy AWS fail-open semantics remain outside this example.",
+    "referenceIds": [
+      "lab5-alb",
+      "lab5-failover"
+    ]
+  },
+  {
+    "id": "dso303-6",
+    "number": 6,
+    "title": "Service Auto Scaling",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-06-autoscaling.html",
+    "objectives": [
+      "Inspect the metric → scalable-target → ECS relationship.",
+      "Compare supplied two-task and four-task capacity snapshots."
+    ],
+    "limitations": "Architecture and capacity snapshots only. Target tracking, step/scheduled scaling, alarms and cooldown decisions are not simulated; complete those experiments in the original lab.",
+    "referenceIds": [
+      "lab6-capacity",
+      "lab6-capacity-four"
+    ]
+  },
+  {
+    "id": "dso303-7",
+    "number": 7,
+    "title": "EKS microservices",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-07-EKS.html",
+    "objectives": [
+      "Compare the single EKS control plane with the USMS workload deployments.",
+      "Explore internal gateway → enrolment/results paths and workload failure."
+    ],
+    "limitations": "EKS workload abstractions only. ClusterIP DNS, pod readiness/selection, manifests, rollout/rollback, RBAC, ConfigMaps and Secrets are not executed. The EKS icons for workloads do not represent separate clusters.",
+    "referenceIds": [
+      "lab7-enrolment",
+      "lab7-results",
+      "lab7-unavailable"
+    ]
+  },
+  {
+    "id": "dso303-8",
+    "number": 8,
+    "title": "EKS scaling and exposure",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-08-EKS-scaling.html",
+    "objectives": [
+      "Compare two and four enrolment replicas while worker count stays separate.",
+      "Inspect the HPA and exposure notes; test an unavailable workload."
+    ],
+    "limitations": "Supplied workload/capacity snapshots only. HPA, metrics-server, scheduling/Pending pods, node-group scaling, PDBs, NodePort, LoadBalancer and Ingress are covered by the linked exercise, not executed here. Send Request surge behavior is a generic approximation, not Kubernetes scaling.",
+    "referenceIds": [
+      "lab8-baseline",
+      "lab8-four",
+      "lab8-unavailable"
+    ]
+  },
+  {
+    "id": "dso303-9",
+    "number": 9,
+    "title": "Security review",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-09-security.html",
+    "objectives": [
+      "Separate IAM permissions from network reachability.",
+      "Verify read-only access and ALB-only task ingress."
+    ],
+    "limitations": "Selected IAM and SG checks only. Trust conditions, PassRole, boundaries, session policies, IMDSv2, key rotation and complete egress audit remain in the original exercise.",
+    "referenceIds": [
+      "lab9-network",
+      "lab9-direct-denied",
+      "lab9-reader",
+      "lab9-write-denied"
+    ]
+  },
+  {
+    "id": "dso303-10",
+    "number": 10,
+    "title": "Lambda and edge functions",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-10-lambda.html",
+    "objectives": [
+      "Distinguish edge associations from regional S3 event processing.",
+      "Check region, published versions, edge restrictions and notification configuration."
+    ],
+    "limitations": "Partial configuration validation only. No authentication handler, cache, OAC/bucket policy, invocation permission, event delivery or logging is executed.",
+    "referenceIds": [
+      "lab10-config",
+      "lab10-latest-invalid"
+    ]
+  },
+  {
+    "id": "dso303-11",
+    "number": 11,
+    "title": "CI/CD source and build",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-11-pipeline.html",
+    "objectives": [
+      "Locate source and build artifacts in the versioned S3 store.",
+      "Distinguish pipeline and CodeBuild roles and stages."
+    ],
+    "limitations": "Partial configuration checks only. IAM service-role authorization, buildspec commands, Docker/ECR operations, task revision registration and rollback are not executed.",
+    "referenceIds": [
+      "lab11-config",
+      "lab11-versioning-invalid"
+    ]
+  },
+  {
+    "id": "dso303-12",
+    "number": 12,
+    "title": "ECS pipeline deployment",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-12-ECSpipeline.html",
+    "objectives": [
+      "Connect build artifacts, ECR images and the ECS deploy action.",
+      "Detect a container-name mismatch and test a supplied running service."
+    ],
+    "limitations": "Partial configuration checks only. IAM service-role authorization, buildspec commands, Docker/ECR operations, task revision registration and rollback are not executed.",
+    "referenceIds": [
+      "lab12-config",
+      "lab12-container-invalid",
+      "lab12-runtime"
+    ]
+  },
+  {
+    "id": "dso303-13",
+    "number": 13,
+    "title": "CloudWatch and X-Ray monitoring",
+    "sourceUrl": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html",
+    "objectives": [
+      "Separate logs, metrics, alarms, dashboards and traces.",
+      "Check retention and missing-data configuration without implying alert delivery."
+    ],
+    "limitations": "Configuration evidence only. No log ingestion, metric filtering, time-series evaluation, composite alarm transition, dashboard rendering, X-Ray ingestion or SNS delivery is executed.",
+    "referenceIds": [
+      "lab13-config",
+      "lab13-silence-invalid"
+    ]
+  }
+]

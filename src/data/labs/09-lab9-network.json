@@ -1,0 +1,552 @@
+{
+  "id": "lab9-network",
+  "title": "ALB-only task access",
+  "description": "Load the course resource layout and explore a supported request path.",
+  "expected": "SUCCESS through the ALB; direct web-to-task access is denied.",
+  "nodes": [
+    {
+      "id": "lab-vpc",
+      "type": "boundaryNode",
+      "position": {
+        "x": 180,
+        "y": 20
+      },
+      "style": {
+        "width": 1040,
+        "height": 1100
+      },
+      "data": {
+        "label": "usms-vpc",
+        "boundaryType": "vpc",
+        "width": 1040,
+        "height": 1100,
+        "cidr": "10.0.0.0/16"
+      }
+    },
+    {
+      "id": "lab-public-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 240
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-a · AZ-A",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.1.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-public-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 240
+      },
+      "style": {
+        "width": 440,
+        "height": 260
+      },
+      "data": {
+        "label": "usms-public-subnet-b · AZ-B",
+        "boundaryType": "public_subnet",
+        "width": 440,
+        "height": 260,
+        "cidr": "10.0.2.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-private-a",
+      "type": "boundaryNode",
+      "position": {
+        "x": 210,
+        "y": 560
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-a · AZ-A",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.3.0/24",
+        "az": "AZ-A"
+      }
+    },
+    {
+      "id": "lab-private-b",
+      "type": "boundaryNode",
+      "position": {
+        "x": 700,
+        "y": 560
+      },
+      "style": {
+        "width": 440,
+        "height": 320
+      },
+      "data": {
+        "label": "usms-private-subnet-b · AZ-B",
+        "boundaryType": "private_subnet",
+        "width": 440,
+        "height": 320,
+        "cidr": "10.0.4.0/24",
+        "az": "AZ-B"
+      }
+    },
+    {
+      "id": "lab-endpoint",
+      "type": "serviceNode",
+      "position": {
+        "x": 900,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "s3_gateway_endpoint",
+        "label": "usms-s3-endpoint",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-client",
+      "type": "serviceNode",
+      "position": {
+        "x": 10,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "user",
+        "label": "Student browser",
+        "category": "Client / Ingress",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-igw",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 60
+      },
+      "data": {
+        "serviceId": "internet_gateway",
+        "label": "usms-igw",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-nat",
+      "type": "serviceNode",
+      "position": {
+        "x": 450,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "nat_gateway",
+        "label": "usms-nat",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-public-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-public-rt → IGW",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: public subnets; default route to usms-igw. Live route-table selection is approximated."
+      }
+    },
+    {
+      "id": "lab-private-rt",
+      "type": "serviceNode",
+      "position": {
+        "x": 700,
+        "y": 940
+      },
+      "data": {
+        "serviceId": "route_tables",
+        "label": "usms-private-rt → NAT",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Reference association: private subnets; default route to usms-nat; S3 endpoint route."
+      }
+    },
+    {
+      "id": "lab-app-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 50
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-app-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "allowedProtocols": [
+          "HTTP",
+          "HTTPS"
+        ]
+      }
+    },
+    {
+      "id": "lab-db-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 210
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-db-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "securityGroupRules": {
+          "inbound": [
+            {
+              "protocol": "SQL",
+              "portRange": "ALL",
+              "source": {
+                "type": "securityGroup",
+                "securityGroupId": "lab-app-sg"
+              }
+            }
+          ],
+          "outbound": []
+        }
+      }
+    },
+    {
+      "id": "lab-web",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "ec2",
+        "label": "usms-web-01",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "lab-app-sg"
+        ],
+        "notes": "Lab 9 baseline: IMDSv2 required, hop limit 1; metadata enforcement and SSH/bastion exercises are not executed."
+      }
+    },
+    {
+      "id": "lab-task-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 380
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-enrolment-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "securityGroupRules": {
+          "inbound": [
+            {
+              "protocol": "HTTP",
+              "portRange": "80",
+              "source": {
+                "type": "securityGroup",
+                "securityGroupId": "lab-alb-sg"
+              }
+            }
+          ],
+          "outbound": [
+            {
+              "protocol": "HTTPS",
+              "portRange": "443",
+              "source": {
+                "type": "cidr",
+                "cidr": "0.0.0.0/0"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lab-task-a",
+      "type": "serviceNode",
+      "position": {
+        "x": 250,
+        "y": 640
+      },
+      "data": {
+        "serviceId": "ecs",
+        "label": "usms-enrolment-svc · task A",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-A",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "lab-task-sg"
+        ],
+        "customConfig": {
+          "ecs": {
+            "launchType": "FARGATE",
+            "networkMode": "awsvpc",
+            "desiredCount": 1,
+            "runningCount": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "lab-task-b",
+      "type": "serviceNode",
+      "position": {
+        "x": 750,
+        "y": 640
+      },
+      "data": {
+        "serviceId": "ecs",
+        "label": "usms-enrolment-svc · task B",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "AZ-B",
+        "subnet": "private",
+        "replicas": 1,
+        "multiAz": false,
+        "securityGroupIds": [
+          "lab-task-sg"
+        ],
+        "customConfig": {
+          "ecs": {
+            "launchType": "FARGATE",
+            "networkMode": "awsvpc",
+            "desiredCount": 1,
+            "runningCount": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "lab-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 640
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/usms/ecs/enrolment",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 1550,
+        "y": 50
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "Task role / execution role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "usms-ecs-task-role: application APIs. usms-ecs-exec-role: agent startup/logging. Startup is not simulated."
+      }
+    },
+    {
+      "id": "lab-alb",
+      "type": "serviceNode",
+      "position": {
+        "x": 750,
+        "y": 300
+      },
+      "data": {
+        "serviceId": "alb",
+        "label": "usms-enrolment-alb · public A + B",
+        "category": "Networking & Content Delivery",
+        "health": "healthy",
+        "az": "Multi-AZ",
+        "subnet": "public",
+        "replicas": 1,
+        "multiAz": true,
+        "securityGroupIds": [
+          "lab-alb-sg"
+        ],
+        "notes": "HTTP:80 → usms-enrolment-tg, IP targets. The /alb-health fixed response and registration timing are not simulated."
+      }
+    },
+    {
+      "id": "lab-alb-sg",
+      "type": "boundaryNode",
+      "position": {
+        "x": 1270,
+        "y": 550
+      },
+      "style": {
+        "width": 220,
+        "height": 120
+      },
+      "data": {
+        "label": "usms-alb-sg",
+        "boundaryType": "security_group",
+        "width": 220,
+        "height": 120,
+        "allowedProtocols": [
+          "HTTP"
+        ],
+        "securityGroupRules": {
+          "inbound": [
+            {
+              "protocol": "HTTP",
+              "portRange": "80",
+              "source": {
+                "type": "cidr",
+                "cidr": "0.0.0.0/0"
+              }
+            }
+          ],
+          "outbound": [
+            {
+              "protocol": "HTTP",
+              "portRange": "80",
+              "source": {
+                "type": "securityGroup",
+                "securityGroupId": "lab-task-sg"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-client-lab-alb",
+      "source": "lab-client",
+      "target": "lab-alb",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-alb-lab-task-a",
+      "source": "lab-alb",
+      "target": "lab-task-a",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-alb-lab-task-b",
+      "source": "lab-alb",
+      "target": "lab-task-b",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTP",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    },
+    {
+      "id": "lab-task-a-lab-logs",
+      "source": "lab-task-a",
+      "target": "lab-logs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500,
+        "traversal": "dependency"
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab9-network",
+    "name": "ALB-only task access",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-client",
+    "trafficLevel": "normal"
+  },
+  "simulationScope": "Supported ALB/task network checks only. Prefix-list egress, credential rotation, IMDSv2 and the complete security audit are not executed."
+}

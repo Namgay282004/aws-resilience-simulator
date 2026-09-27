@@ -1,0 +1,601 @@
+{
+  "id": "lab13-silence-invalid",
+  "title": "Silence alarm ignores missing data",
+  "description": "Inspect the three telemetry layers and check the course retention, silence-detection and tracing configuration.",
+  "expected": "FAIL the course silence-detection check.",
+  "nodes": [
+    {
+      "id": "lab-notifier",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "lambda",
+        "label": "usms-transcript-notifier:live · v2",
+        "category": "Compute",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "tracing": "Active"
+        }
+      }
+    },
+    {
+      "id": "lab-central-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/usms/central/application",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "retentionInDays": 30,
+          "filterPattern": "ERROR"
+        }
+      }
+    },
+    {
+      "id": "lab-notifier-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/aws/lambda/usms-transcript-notifier",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "retentionInDays": 14,
+          "filterPattern": "USMS_NOTIFY"
+        }
+      }
+    },
+    {
+      "id": "lab-ecs-logs",
+      "type": "serviceNode",
+      "position": {
+        "x": 300,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "/usms/ecs/enrolment",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "retentionInDays": 30
+        }
+      }
+    },
+    {
+      "id": "lab-metrics",
+      "type": "serviceNode",
+      "position": {
+        "x": 580,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "USMS/Application metrics",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "CentralErrorCount / NotifyCount from filters; TranscriptsProcessed, TranscriptLagSeconds, EdgeDenyCount from application metrics. Dimensions are part of metric identity."
+      }
+    },
+    {
+      "id": "lab-lag-alarm",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "usms-transcript-lag-high",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-silence-alarm",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 220
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "usms-notify-silence",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "metricName": "NotifyCount",
+          "treatMissingData": "notBreaching"
+        }
+      }
+    },
+    {
+      "id": "lab-dashboard",
+      "type": "serviceNode",
+      "position": {
+        "x": 860,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "usms-overview · dashboard",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-composite",
+      "type": "serviceNode",
+      "position": {
+        "x": 1140,
+        "y": 120
+      },
+      "data": {
+        "serviceId": "cloudwatch",
+        "label": "usms-transcript-pipeline-down",
+        "category": "Management & Governance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "customConfig": {
+          "alarmRule": "ALARM(\"usms-transcript-lag-high\") OR ALARM(\"usms-notify-silence\")",
+          "alarmActions": []
+        },
+        "notes": "SNS alarm actions belong to a future lab; no notification is sent."
+      }
+    },
+    {
+      "id": "lab-xray",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 440
+      },
+      "data": {
+        "serviceId": "xray",
+        "label": "X-Ray · usms-transcripts-sampling",
+        "category": "Developer Tools",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Trace/segment/subsegment relationships are reference metadata. No trace ingestion, sampling or request timing is executed."
+      }
+    },
+    {
+      "id": "lab-observability-role",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 20
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "USMSObservabilityWrite",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false,
+        "notes": "Logs, custom metrics and X-Ray write policy; attachment is reference metadata, not proof of authorization."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-notifier-lab-notifier-logs",
+      "source": "lab-notifier",
+      "target": "lab-notifier-logs",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Function logs"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-notifier-lab-xray",
+      "source": "lab-notifier",
+      "target": "lab-xray",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Tracing"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-central-logs-lab-metrics",
+      "source": "lab-central-logs",
+      "target": "lab-metrics",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "ERROR → CentralErrorCount"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-notifier-logs-lab-metrics",
+      "source": "lab-notifier-logs",
+      "target": "lab-metrics",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "USMS_NOTIFY → NotifyCount"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-metrics-lab-lag-alarm",
+      "source": "lab-metrics",
+      "target": "lab-lag-alarm",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "TranscriptLagSeconds"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-metrics-lab-silence-alarm",
+      "source": "lab-metrics",
+      "target": "lab-silence-alarm",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "NotifyCount"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-metrics-lab-dashboard",
+      "source": "lab-metrics",
+      "target": "lab-dashboard",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Dashboard widgets"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-lag-alarm-lab-composite",
+      "source": "lab-lag-alarm",
+      "target": "lab-composite",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "ALARM(a)"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-silence-alarm-lab-composite",
+      "source": "lab-silence-alarm",
+      "target": "lab-composite",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "OR ALARM(b)"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    },
+    {
+      "id": "lab-observability-role-lab-notifier",
+      "source": "lab-observability-role",
+      "target": "lab-notifier",
+      "type": "custom",
+      "data": {
+        "protocol": "HTTPS",
+        "interactionType": "synchronous",
+        "isCriticalDependency": false,
+        "timeoutMs": 1500,
+        "traversal": "dependency",
+        "label": "Telemetry write policy"
+      },
+      "style": {
+        "strokeDasharray": "6 4"
+      }
+    }
+  ],
+  "configurationChecks": [
+    {
+      "id": "central-retention",
+      "nodeId": "lab-central-logs",
+      "path": [
+        "customConfig",
+        "retentionInDays"
+      ],
+      "operator": "equals",
+      "expected": 30,
+      "reason": "Course central log retention is 30 days.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "ecs-retention",
+      "nodeId": "lab-ecs-logs",
+      "path": [
+        "customConfig",
+        "retentionInDays"
+      ],
+      "operator": "equals",
+      "expected": 30,
+      "reason": "Course ECS log retention is 30 days.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "notifier-retention",
+      "nodeId": "lab-notifier-logs",
+      "path": [
+        "customConfig",
+        "retentionInDays"
+      ],
+      "operator": "equals",
+      "expected": 14,
+      "reason": "Course notifier log retention is 14 days.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "notify-filter",
+      "nodeId": "lab-notifier-logs",
+      "path": [
+        "customConfig",
+        "filterPattern"
+      ],
+      "operator": "equals",
+      "expected": "USMS_NOTIFY",
+      "reason": "Course notifier filter counts USMS_NOTIFY log lines.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "missing-data",
+      "nodeId": "lab-silence-alarm",
+      "path": [
+        "customConfig",
+        "treatMissingData"
+      ],
+      "operator": "equals",
+      "expected": "breaching",
+      "reason": "Course silence detection must treat missing data as breaching.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "active-tracing",
+      "nodeId": "lab-notifier",
+      "path": [
+        "customConfig",
+        "tracing"
+      ],
+      "operator": "equals",
+      "expected": "Active",
+      "reason": "Course regional notifier enables active tracing; Lambda@Edge is a separate path.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "composite-rule",
+      "nodeId": "lab-composite",
+      "path": [
+        "customConfig",
+        "alarmRule"
+      ],
+      "operator": "equals",
+      "expected": "ALARM(\"usms-transcript-lag-high\") OR ALARM(\"usms-notify-silence\")",
+      "reason": "Course composite alarm combines lag OR silence.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "future-alerting",
+      "nodeId": "lab-composite",
+      "path": [
+        "customConfig",
+        "alarmActions"
+      ],
+      "operator": "equals",
+      "expected": [],
+      "reason": "Lab 13 records an alerting draft; it does not attach SNS actions.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-notifier-lab-notifier-logs-relationship",
+      "nodeId": "lab-notifier",
+      "otherNodeId": "lab-notifier-logs",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-notifier → lab-notifier-logs relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-notifier-lab-xray-relationship",
+      "nodeId": "lab-notifier",
+      "otherNodeId": "lab-xray",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-notifier → lab-xray relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-central-logs-lab-metrics-relationship",
+      "nodeId": "lab-central-logs",
+      "otherNodeId": "lab-metrics",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-central-logs → lab-metrics relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-notifier-logs-lab-metrics-relationship",
+      "nodeId": "lab-notifier-logs",
+      "otherNodeId": "lab-metrics",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-notifier-logs → lab-metrics relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-metrics-lab-lag-alarm-relationship",
+      "nodeId": "lab-metrics",
+      "otherNodeId": "lab-lag-alarm",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-metrics → lab-lag-alarm relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-metrics-lab-silence-alarm-relationship",
+      "nodeId": "lab-metrics",
+      "otherNodeId": "lab-silence-alarm",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-metrics → lab-silence-alarm relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-metrics-lab-dashboard-relationship",
+      "nodeId": "lab-metrics",
+      "otherNodeId": "lab-dashboard",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-metrics → lab-dashboard relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-lag-alarm-lab-composite-relationship",
+      "nodeId": "lab-lag-alarm",
+      "otherNodeId": "lab-composite",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-lag-alarm → lab-composite relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-silence-alarm-lab-composite-relationship",
+      "nodeId": "lab-silence-alarm",
+      "otherNodeId": "lab-composite",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-silence-alarm → lab-composite relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    },
+    {
+      "id": "lab-observability-role-lab-notifier-relationship",
+      "nodeId": "lab-observability-role",
+      "otherNodeId": "lab-notifier",
+      "path": [],
+      "operator": "connection",
+      "reason": "The reference must retain the lab-observability-role → lab-notifier relationship.",
+      "source": "https://norbutlepcha25.github.io/dso303/Lab/Lab-13-monitoring.html"
+    }
+  ],
+  "scenario": {
+    "id": "lab13-silence-invalid",
+    "name": "Silence alarm ignores missing data",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-notifier",
+    "trafficLevel": "normal"
+  },
+  "simulationScope": "Configuration evidence only. No log ingestion, metric filtering, time-series evaluation, composite alarm transition, dashboard rendering, X-Ray ingestion or SNS delivery is executed."
+}

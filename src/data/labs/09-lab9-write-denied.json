@@ -1,0 +1,101 @@
+{
+  "id": "lab9-write-denied",
+  "title": "Read-only role cannot upload",
+  "description": "Evaluate the effective role policy against a future transcript object. The bucket is created in Lab 10.",
+  "expected": "DENY PutObject through implicit deny.",
+  "nodes": [
+    {
+      "id": "lab-user",
+      "type": "serviceNode",
+      "position": {
+        "x": 40,
+        "y": 160
+      },
+      "data": {
+        "serviceId": "iam",
+        "label": "usms-transcripts-reader-role",
+        "category": "Security, Identity & Compliance",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    },
+    {
+      "id": "lab-bucket",
+      "type": "serviceNode",
+      "position": {
+        "x": 400,
+        "y": 160
+      },
+      "data": {
+        "serviceId": "s3",
+        "label": "Future usms-student-data resource",
+        "category": "Storage",
+        "health": "healthy",
+        "az": "Edge / Global",
+        "subnet": "global",
+        "replicas": 1,
+        "multiAz": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "lab-user-lab-bucket",
+      "source": "lab-user",
+      "target": "lab-bucket",
+      "type": "custom",
+      "data": {
+        "protocol": "Object access",
+        "interactionType": "synchronous",
+        "isCriticalDependency": true,
+        "timeoutMs": 1500
+      }
+    }
+  ],
+  "scenario": {
+    "id": "lab9-write-denied",
+    "name": "Read-only role cannot upload",
+    "method": "GET",
+    "path": "/",
+    "startNodeId": "lab-user",
+    "trafficLevel": "normal"
+  },
+  "authorization": {
+    "principal": {
+      "id": "usms-transcripts-reader-role",
+      "kind": "role",
+      "accountId": "000000000000",
+      "identityPolicies": [
+        {
+          "id": "USMSStudentDataReadOnly",
+          "kind": "identity",
+          "statements": [
+            {
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "resources": [
+                "arn:aws:s3:::usms-student-data/*"
+              ]
+            },
+            {
+              "effect": "Allow",
+              "actions": [
+                "s3:ListBucket"
+              ],
+              "resources": [
+                "arn:aws:s3:::usms-student-data"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "action": "s3:PutObject",
+    "resourceArn": "arn:aws:s3:::usms-student-data/transcripts/student.json"
+  }
+}

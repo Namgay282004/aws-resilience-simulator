@@ -12,9 +12,10 @@
     "test:ui": "node --import ./test/support/register.mjs --test test/ui/*.test.ts",
     "preview": "vite preview",
     "references:sync": "node scripts/generate-references.mjs",
-    "predev": "npm run references:sync",
-    "prebuild": "npm run references:sync",
-    "pretest": "npm run references:sync"
+    "labs:sync": "node scripts/generate-labs.mjs",
+    "predev": "npm run references:sync && npm run labs:sync",
+    "prebuild": "npm run references:sync && npm run labs:sync",
+    "pretest": "npm run references:sync && npm run labs:sync"
   },
   "dependencies": {
     "@xyflow/react": "^12.4.4",

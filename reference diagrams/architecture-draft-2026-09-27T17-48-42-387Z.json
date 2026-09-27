@@ -1,0 +1,304 @@
+{
+  "format": "aws-architecture-lab",
+  "version": 2,
+  "applicationRelease": {
+    "version": "1.0.0",
+    "buildId": "fd3ea4ad-d618-4119-a3b0-3025fe31b9e9",
+    "channel": "stable",
+    "builtAt": "2026-09-22T19:11:52.011Z",
+    "draftVersion": 2
+  },
+  "savedAt": "2026-09-27T17:48:42.387Z",
+  "state": {
+    "nodes": [
+      {
+        "id": "box-vpc",
+        "type": "boundaryNode",
+        "position": {
+          "x": 60,
+          "y": 40
+        },
+        "data": {
+          "label": "VPC",
+          "boundaryType": "vpc",
+          "width": 780,
+          "height": 480,
+          "cidr": "10.0.0.0/16"
+        },
+        "style": {
+          "width": 780,
+          "height": 480
+        },
+        "draggable": true,
+        "selectable": true,
+        "zIndex": -4,
+        "measured": {
+          "width": 780,
+          "height": 480
+        }
+      },
+      {
+        "id": "box-public-subnet",
+        "type": "boundaryNode",
+        "position": {
+          "x": 90,
+          "y": 80
+        },
+        "data": {
+          "label": "Public subnet",
+          "boundaryType": "public_subnet",
+          "width": 720,
+          "height": 195,
+          "cidr": "10.0.0.0/17",
+          "totalAddresses": 32768,
+          "usableHosts": 32763,
+          "reservedAddresses": [
+            {
+              "ip": "10.0.0.0",
+              "offset": 0,
+              "role": "Network Address",
+              "description": "First address in the subnet. Identifies the network itself."
+            },
+            {
+              "ip": "10.0.0.1",
+              "offset": 1,
+              "role": "VPC Router",
+              "description": "Reserved by AWS for the default VPC router / subnet gateway."
+            },
+            {
+              "ip": "10.0.0.2",
+              "offset": 2,
+              "role": "Amazon-Provided DNS",
+              "description": "Reserved by AWS for the DNS resolver (Route 53 Resolver / AmazonProvidedDNS)."
+            },
+            {
+              "ip": "10.0.0.3",
+              "offset": 3,
+              "role": "AWS Future Use",
+              "description": "Reserved by AWS for potential future internal functionality."
+            },
+            {
+              "ip": "10.0.127.255",
+              "offset": 32767,
+              "role": "Network Broadcast Address",
+              "description": "Last address in the subnet. AWS does not support broadcast in a VPC, but reserves the address."
+            }
+          ],
+          "usableRange": {
+            "start": "10.0.0.4",
+            "end": "10.0.127.254"
+          }
+        },
+        "style": {
+          "width": 720,
+          "height": 195
+        },
+        "draggable": true,
+        "selectable": true,
+        "zIndex": -3,
+        "measured": {
+          "width": 720,
+          "height": 195
+        }
+      },
+      {
+        "id": "box-private-subnet",
+        "type": "boundaryNode",
+        "position": {
+          "x": 90,
+          "y": 300
+        },
+        "data": {
+          "label": "Private subnet",
+          "boundaryType": "private_subnet",
+          "width": 720,
+          "height": 195,
+          "cidr": "10.0.128.0/17",
+          "totalAddresses": 32768,
+          "usableHosts": 32763,
+          "reservedAddresses": [
+            {
+              "ip": "10.0.128.0",
+              "offset": 0,
+              "role": "Network Address",
+              "description": "First address in the subnet. Identifies the network itself."
+            },
+            {
+              "ip": "10.0.128.1",
+              "offset": 1,
+              "role": "VPC Router",
+              "description": "Reserved by AWS for the default VPC router / subnet gateway."
+            },
+            {
+              "ip": "10.0.128.2",
+              "offset": 2,
+              "role": "Amazon-Provided DNS",
+              "description": "Reserved by AWS for the DNS resolver (Route 53 Resolver / AmazonProvidedDNS)."
+            },
+            {
+              "ip": "10.0.128.3",
+              "offset": 3,
+              "role": "AWS Future Use",
+              "description": "Reserved by AWS for potential future internal functionality."
+            },
+            {
+              "ip": "10.0.255.255",
+              "offset": 32767,
+              "role": "Network Broadcast Address",
+              "description": "Last address in the subnet. AWS does not support broadcast in a VPC, but reserves the address."
+            }
+          ],
+          "usableRange": {
+            "start": "10.0.128.4",
+            "end": "10.0.255.254"
+          }
+        },
+        "style": {
+          "width": 720,
+          "height": 195
+        },
+        "draggable": true,
+        "selectable": true,
+        "zIndex": -3,
+        "measured": {
+          "width": 720,
+          "height": 195
+        }
+      },
+      {
+        "id": "node-ecs-1790530749486",
+        "type": "serviceNode",
+        "position": {
+          "x": 431.3313643038349,
+          "y": 150.20220703602672
+        },
+        "data": {
+          "serviceId": "ecs",
+          "label": "Amazon ECS",
+          "category": "Compute",
+          "health": "healthy",
+          "az": "AZ-A",
+          "subnet": "public",
+          "replicas": 1,
+          "multiAz": false,
+          "width": 100,
+          "height": 81,
+          "customConfig": {
+            "ecsWorkspace": {
+              "clusterName": "SWE-Demo",
+              "serviceName": "nginx-hello",
+              "instanceType": "t3.micro",
+              "instanceCount": "1",
+              "family": "nginxdemos",
+              "cpu": "2",
+              "memory": "512",
+              "taskRole": "123",
+              "executionRole": "123",
+              "logGroup": "123",
+              "containers": [
+                {
+                  "name": "nginx-demo",
+                  "image": "nginxdemos/hello",
+                  "port": "80",
+                  "essential": true
+                }
+              ]
+            },
+            "ecs": {
+              "launchType": "EC2"
+            }
+          }
+        },
+        "zIndex": 10,
+        "measured": {
+          "width": 100,
+          "height": 81
+        },
+        "style": {
+          "width": 100,
+          "height": 81
+        },
+        "selected": true,
+        "dragging": false
+      },
+      {
+        "id": "node-alb-1790530885664",
+        "type": "serviceNode",
+        "position": {
+          "x": 154.50464190715326,
+          "y": 140.48787410791323
+        },
+        "data": {
+          "serviceId": "alb",
+          "label": "Application Load Balancer (ALB)",
+          "category": "Networking & Content Delivery",
+          "health": "healthy",
+          "az": "AZ-A",
+          "subnet": "public",
+          "replicas": 1,
+          "multiAz": false,
+          "width": 140,
+          "height": 98
+        },
+        "zIndex": 10,
+        "measured": {
+          "width": 140,
+          "height": 98
+        },
+        "style": {
+          "width": 140,
+          "height": 98
+        },
+        "selected": false,
+        "dragging": false
+      }
+    ],
+    "edges": [
+      {
+        "zIndex": 1000,
+        "source": "node-alb-1790530885664",
+        "sourceHandle": "source-right",
+        "target": "node-ecs-1790530749486",
+        "targetHandle": "target-left",
+        "id": "edge-node-alb-1790530885664-node-ecs-1790530749486-1790530889334",
+        "type": "custom",
+        "markerEnd": {
+          "type": "arrowclosed",
+          "color": "#94A3B8"
+        },
+        "data": {
+          "protocol": "HTTP",
+          "lineStyle": "straight",
+          "interactionType": "synchronous",
+          "isCriticalDependency": true,
+          "timeoutMs": 2500
+        }
+      }
+    ],
+    "scenario": {
+      "id": "default-scenario",
+      "name": "Application Request",
+      "method": "GET",
+      "path": "/api/v1/resource",
+      "startNodeId": "",
+      "trafficLevel": "normal"
+    },
+    "simulationResult": null,
+    "activeFailures": [],
+    "activeLabReference": null,
+    "activeChallengeId": null,
+    "challengeResult": null,
+    "appMode": "design",
+    "selectedNodeId": "node-ecs-1790530749486",
+    "selectedEdgeId": null,
+    "activeStepIndex": null,
+    "playbackSpeed": 1,
+    "highlightTaskFlow": true,
+    "showNaclSideColumn": false,
+    "viewport": {
+      "x": 116.16006197957114,
+      "y": 69.46974603645037,
+      "zoom": 1.2235045917094265
+    }
+  }
+}

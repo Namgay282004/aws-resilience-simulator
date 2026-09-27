@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
 import type { LabReference } from '../src/data/courseLabs.ts';
 import { findContainingSubnetBoundary } from '../src/engine/layout/containment.ts';
 import { COURSE_LABS } from '../src/data/courseLabs.ts';
@@ -148,3 +149,17 @@ for (const number of [10, 11, 12, 13]) {
     assert.equal(runLabReference(broken).success, false);
   });
 }
+
+test('Every lab reference has its own JSON source in src/data/labs/, with no lost or extra references', () => {
+  const folder = new URL('../src/data/labs/', import.meta.url);
+  const files = readdirSync(folder).filter(name => name.endsWith('.json'));
+  const allReferences = COURSE_LABS.flatMap(lab => lab.references);
+  assert.equal(files.length, allReferences.length);
+  const ids = new Set<string>();
+  for (const file of files) {
+    const parsed = JSON.parse(readFileSync(new URL(file, folder), 'utf8'));
+    assert.ok(!ids.has(parsed.id), `duplicate lab reference id in ${file}`);
+    ids.add(parsed.id);
+    assert.deepEqual(parsed, allReferences.find(ref => ref.id === parsed.id), `${file} does not match the loaded reference`);
+  }
+});

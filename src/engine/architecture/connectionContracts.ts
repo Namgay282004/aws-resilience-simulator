@@ -18,6 +18,12 @@ const inputs: Record<string, ProtocolType[]> = {
 };
 const operations: Record<string, string[]> = { s3: ['s3:GetObject', 's3:PutObject', 's3:ListBucket'], sqs: ['sqs:SendMessage'], sns: ['sns:Publish'], dynamodb: ['dynamodb:GetItem', 'dynamodb:PutItem'], lambda: ['lambda:InvokeFunction'] };
 /** Canvas defaults must distinguish control-plane links from application traffic. */
+/** Policy-association illustration, not a credential exchange or forwarding hop.
+ * AWS: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html
+ */
+export function isAuthorizationPair(source?: Node<any>, target?: Node<any>): boolean {
+  return !!source && !!target && ((['user', 'api_client', 'client_ui', 'ec2', 'lambda', 'ecs', 'fargate'].includes(source.data.serviceId) && target.data.serviceId === 'iam') || (source.data.serviceId === 'iam' && target.data.serviceId === 's3'));
+}
 export function isManagementPair(source?: Node<any>, target?: Node<any>): boolean {
   if (!source || !target) return false;
   const from = source.data.serviceId, to = target.data.serviceId;
@@ -40,6 +46,8 @@ export function checkConnection(source: Node<any> | undefined, target: Node<any>
   if (!source || !target) return bad('Connection references a missing resource.');
   if (source.id === target.id) return bad('A resource cannot connect to itself.');
   const kind = relationshipKind(data);
+  if (kind === 'authorization') return isAuthorizationPair(source, target) ? { status: 'valid', reason: 'Authorization illustration, not a network hop. This line does not grant access; configured policies determine permission. Send the actual request directly to S3.' } : bad('Unsupported authorization illustration for this pair.');
+  if (data?.referenceAnnotation && kind === 'manages') return { status: 'unknown', reason: 'Lab configuration link only. This relationship is editable but does not execute application traffic or prove AWS behavior.' };
   if (kind === 'manages') return isManagementPair(source, target) ? { status: 'valid', reason: 'Management relationship; not request traffic.' } : { status: 'unknown', reason: 'Management relationship behavior is not modeled for this pair.' };
   if (kind === 'route-association' || kind === 'target-registration') return { status: 'unknown', reason: 'Structural relationship is not executable request traffic.' };
   if (source.type === 'boundaryNode' || target.type === 'boundaryNode') return bad('Boundary containers cannot send or receive application requests.');

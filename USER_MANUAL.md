@@ -214,7 +214,10 @@ EKS's control-plane fee) don't change with region, by design.
   scope. **Load reference** puts a lab's reference snapshot on the canvas without running it;
   **Run reference simulation** / **Check reference configuration** loads it and immediately runs
   it. There's no separate scoring UI — "completing" a lab means using the normal Send
-  Request / Check Configuration / Evaluate Policy controls (§5) and reading the result.
+  Request / Check Configuration / Evaluate Policy controls (§5) and reading the result. The small
+  download icon next to a reference card exports its JSON — edit it and place it in
+  `src/data/labs/` (see that folder's README) to make a permanent change; there's no upload button
+  for lab references, unlike drafts.
 
 ## 10. Exporting your work
 

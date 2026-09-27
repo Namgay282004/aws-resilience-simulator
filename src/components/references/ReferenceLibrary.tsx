@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { FolderOpen, Download, Upload, Save } from 'lucide-react';
+import { FolderOpen, Download, Save } from 'lucide-react';
 import { useArchitecture } from '../../context/ArchitectureContext.tsx';
 import { REFERENCE_ARCHITECTURES, type ReferenceArchitecture } from '../../data/referenceArchitectures.ts';
 import { parseReference, readReferenceLibrary, saveReference } from '../../engine/persistence/references.ts';
@@ -9,7 +9,6 @@ import { saveJsonFile } from '../../utils/saveJson.ts';
 export function ReferenceLibrary() {
   const { nodes, edges, scenario, draftName, loadTemplate } = useArchitecture();
   const panel = useRef<HTMLDetailsElement>(null);
-  const file = useRef<HTMLInputElement>(null);
   const [saved, setSaved] = useState<ReferenceArchitecture[]>([]);
   const [name, setName] = useState(''); const [search, setSearch] = useState('');
   const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
@@ -38,11 +37,9 @@ export function ReferenceLibrary() {
             const downloaded = await saveJsonFile(JSON.stringify(ref, null, 2), draftFilename(ref.name), true);
             setMessage(downloaded ? `Reference JSON exported.${stored ? ' A copy is also saved in this browser.' : ' Browser storage was unavailable.'}` : stored ? 'Saved in this browser. File save cancelled; use the download button later.' : 'File save cancelled. Browser storage was unavailable; no reference was saved.');
           } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); }
-        }}><Save size={14} className="inline mr-1" />{busy ? 'Saving…' : 'Save as reference'}</button>
-        <button className={button} onClick={() => file.current?.click()}><Upload size={14} className="inline mr-1" />Import reference</button></div>
+        }}><Save size={14} className="inline mr-1" />{busy ? 'Saving…' : 'Save as reference'}</button></div>
         <p className="text-xs text-slate-500">A reference file keeps the architecture and request settings. Browser copies stay on this device; export a file to share or keep a backup.</p>
       </div>
-      <input hidden ref={file} type="file" accept=".json,application/json" aria-label="Import reference JSON" onChange={async e => { const selected = e.target.files?.[0]; e.target.value = ''; if (!selected) return; try { if (selected.size > 20_000_000) throw new Error('Reference exceeds the 20 MB limit.'); const ref = parseReference(await selected.text()); if (REFERENCE_ARCHITECTURES.some(r => r.id === ref.id) || saved.some(r => r.id === ref.id)) ref.id = `custom-${crypto.randomUUID()}`; setSaved(saveReference(localStorage, ref)); setMessage('Reference imported into your browser library.'); } catch (error) { setMessage(String(error)); } }} />
       {message && <p role="status" className="text-xs bg-slate-100 p-2 rounded">{message}</p>}
     </section>
   </details>;

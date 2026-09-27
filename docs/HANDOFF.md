@@ -6,11 +6,54 @@ overwrite stale sections instead of appending; `git log` is the changelog.
 Full objective/intent/architecture rules live in the root `CLAUDE.md` — this
 file only tracks what's currently true and in flight.
 
-Last updated: 2026-09-25 (Codex). PNG export now excludes React Flow connection handles
-using the html-to-image clone filter; live canvas and actual edges remain unchanged.
-Verification: production build passes (existing bundle-size warning). Previous full suite:
-469 passing; not rerun for this export-only filter. No screenshot QA, commit or deployment.
-Other agents' uncommitted changes preserved.
+Last updated: 2026-09-28 (Codex). Added derived dashed orange ASG membership frames on
+canvas. engine/layout/asgMembershipFrames.ts computes bounds of explicit initial and generated
+EC2 members, resolves nested positions, and partitions frames by subnet. Frames resize after
+launch/removal/movement, exclude hidden members, and have an ASG membership Layers toggle.
+They are render-only, noninteractive nodes; canvas filters their changes out of architecture
+state. They do not reparent EC2, change networking, or persist synthetic nodes in drafts.
+Verified 480 tests (448 engine/conformance +32 UI) and build; no browser visual QA.
+
+Previously: ASG Config remains editable after simulation starts.
+Policy edits automatically pause/reset only that group’s scaling run before applying changes;
+alarm threshold/sample changes remain live. Added Play/Advance for ALB mode (repeats the
+current request scenario) and Faster time 1×/2×/5× (1.5/0.75/0.3 seconds per simulated period).
+Interval reads a current callback without resetting on animation renders. Existing positions
+are retained; generated labels continue EC2 3, EC2 4, and use ordered available slots.
+Verified 479 tests (447 engine/conformance +32 UI) and production build; no visual browser QA.
+
+Previously: CloudWatch → ASG live reference now has a tidier
+control-column/ALB/EC2 layout and suppresses its service-learning overlay via canvasScalingDemo.
+CloudWatch Config offers simple, target, step and scheduled policies. Step bands account for
+pending capacity; schedules execute once when simulated time crosses each configured action;
+target tracking has opt-in scale-in (enabled in reference). Only generated instances terminate;
+initial diagram members remain the demo floor. Termination removes incident edges immediately.
+Scheduled Play/Advance works without traffic; no cron/timezones or draining is modeled.
+Full suite 478 passing (446 engine/conformance +32 UI), build passes (existing size warning).
+Read docs/features/ASG_SCALING.md for precise bounds and sources. No browser visual QA.
+
+Previously added canvas Layers button at the top-right beside the
+details column; its dropdown opens inward with right alignment and closes on outside
+pointer clicks (including the canvas). Interacting inside the dropdown keeps it open.
+CanvasLayers lists present boundary/service types with visibility checkboxes and Show all.
+ArchitectureCanvas projects hidden flags onto rendered nodes and incident edges only; the
+architecture and simulation retain all components. Hiding VPC/subnet frames keeps contained
+resources visible (canvas uses absolute positions, not parentId nesting). Visibility resets on
+canvasRevision and is not saved in drafts. Build and existing 32 UI integration tests pass;
+no browser visual QA performed.
+
+Rechecked numbered connection playback: numeric stepNumber
+sets per-node branch priority; animation follows the generated trace, not a global sorted arrow
+list. Free-text label numbers are not parsed. Playback badges use timeline numbers while saved
+priorities remain unchanged. Added real-provider playback regression; full suite now 475 passing
+(443 engine/conformance +32 UI). No runtime code changed for this check.
+
+Previously reviewed current lab/reference migration and regression
+suite. Loaded lab/reference titles now become draft names. Lab 1 User→IAM can be drawn as
+an authorization illustration; supplied unknown lab pairs can be recreated as non-executable
+configuration annotations. Verification: full suite 474 passing (443 engine/conformance +31 UI),
+production build passes; UI suite rerun after adding explicit-deny regression. No browser QA,
+commit or deployment. Existing lab JSON migration and Import-reference removal preserved.
 
 ## Protocol
 
@@ -35,12 +78,51 @@ Do not discard unrelated changes.
 
 ### In-flight work
 
+- **Loaded names and lab editing** — `openLabReference` uses title, `loadTemplate` uses name
+  for draft/export/reference default names (max120 characters). Template load pauses playback.
+  `labConnections.ts` allows recreation of source/target service pairs present in the active
+  lab but missing executable contracts, as explicitly labeled `manages` configuration
+  annotations. These retain UNKNOWN capability and never traverse as requests; known-invalid
+  requests remain rejected. Guard prevents converting those annotations into unknown requests.
+- **Lab 1 User→IAM** — new `authorization` relationship defaults for supported principal→IAM
+  and IAM→S3 illustrations. Distinct dashed style and inspector option/explanation. This is a
+  policy association, not login/STS simulation or an IAM forwarding proxy. Direct User→S3
+  remains the request; Lab1 authorization inputs/evaluator remain unchanged. Tests prove ALLOW
+  and explicit DENY unchanged after drawing the link. Read `docs/features/LAB_CONNECTION_EDITING.md`.
+
+- **Lab references: generator functions → JSON folder** — done, implemented + tested +
+  documented, mirroring the reference-diagram migration below but for course labs. New
+  `src/data/labs/*.json` (29 files, one per final `LabReference`, generated by dumping the exact
+  output of the retired generator functions — not hand-transcribed, so `npm test` passing
+  unchanged before/after, 469 then 471, is the fidelity proof), `scripts/generate-labs.mjs` +
+  `labs:sync` wired into `predev`/`prebuild`/`pretest`, `src/data/courseLabsMeta.json` (hand-
+  maintained lab metadata: title/objectives/sourceUrl/limitations/referenceIds — not
+  architecture data, stays out of the JSON-per-file folder). `src/data/courseLabs.ts` shrank to
+  ~30 lines (looks references up by id, throws if one's missing rather than silently dropping a
+  lab). `src/data/courseLabsAdvanced.ts` deleted; `courseLabShared.ts` trimmed to types only.
+  Added a download-only button per reference card in `LabsModal.tsx` (deliberately no
+  upload/import — a lab reference carries `configurationChecks`/`authorization` that need
+  reviewing, not blind re-uploading; matches the reference-diagram Import removal below). Tests:
+  new assertion in `test/course-labs.test.ts` (JSON-source fidelity, mirrors
+  `test/reference-library.test.ts`) + new UI test for the download button. Doc:
+  `docs/features/LAB_REFERENCES_MIGRATION.md`; `docs/COURSE_LABS.md` and `src/data/labs/README.md`
+  updated. Verified along the way: dropping a workspace-draft JSON file into
+  `src/data/references/` does NOT work and actually crashes `references:sync` (confirmed at the
+  code level, not just the folder's own README warning) — so "Save as reference" is not
+  redundant with Drafts and was kept.
+- **Reference diagram "Import reference" button removed** — done, tested: per explicit request,
+  `ReferenceLibrary.tsx` no longer has an upload/import path — "Save as reference" (download +
+  optional browser-local copy) is the only way to produce a file, and making it permanent still
+  requires manually placing that file in `src/data/references/` (browsers cannot write into the
+  repo — confirmed, not assumed). Updated `test/ui/ui-integration.test.ts` to assert the import
+  input is gone rather than present.
 - **Reference catalogue modularization** — 14 finalized built-ins in `src/data/references/*.json`;
   exact snapshot equality verified against the original 3362-line module before replacement.
   `scripts/generate-references.mjs` generates `referenceRegistry.ts` before dev/build/test.
   Existing imports remain via `referenceArchitectures.ts`; `asgReference.ts` re-exports JSON.
   `ReferenceLibrary` is on the canvas top-left, removed from header. Supports search, load,
-  download, import and Save as reference (diagram + optional scenario). Browser library uses
+  download and Save as reference (diagram + optional scenario). Import was removed 2026-09-28
+  (see the bullet above) — do not re-add it without re-reading why. Browser library uses
   `aws-architecture-lab.references.v1`; source export works even if browser storage fails.
   User explicitly will copy exported files into `src/data/references/` themselves. See folder README.
   `loadTemplate` accepts validated custom reference and clones it before loading; optional
@@ -65,8 +147,8 @@ Do not discard unrelated changes.
   creates a synthetic one-minute request batch from traffic level, and drives the scaling engine
   without any inspector/overlay open. `engine/scaling/albObservation.ts` requires explicit
   ALB→CloudWatch management edge and ASG member association. `asg.ts` owns lifecycle/nodes/IPs.
-  CloudWatch Config exposes metric source, monitored ALB and simple/illustrative target-tracking
-  policies. Selecting ALB source creates monitoring edge; manual controls hidden in ALB mode.
+  CloudWatch Config exposes metric source, monitored ALB and simple/target/step/scheduled
+  policies. Selecting ALB source creates monitoring edge; playback controls available in all modes.
   Canvas badges show alarm/desired/lifecycle. Reference `cloudwatch-asg-live-scaling` now defaults
   to ALB metrics: normal120/minute, initial2 targets, threshold50, two runs create a third EC2.
   Source mappings are disclosed in panel and result summary; not measured CPU or real request volume.
@@ -210,13 +292,13 @@ Do not discard unrelated changes.
 
 ### Known gaps
 
-- ASG controller is simple scale-out only, explicit period samples, one blueprint subnet and
-  dedicated alarm per group. No auto CPU metrics, scale-in, replacement, full health checks,
+- ASG controller uses explicit period samples, one blueprint subnet and
+  dedicated alarm per group. No auto CPU metrics, initial-member termination, replacement, full health checks,
   ECS scheduling, full AWS target-tracking controller, SNS alarm fanout or scaling IAM. Boundary expansion survives
   reset. Play is inspector-local and stops on unmount. Runtime persists, wall-clock playback does not.
 
 - ECS host identities, shared capacity-provider/ASG configuration, actual task placement,
-  resource scheduling, and lifecycle timing remain unmodeled. No live EC2 Auto Scaling simulation.
+  resource scheduling, and lifecycle timing remain unmodeled. ECS task placement is not coupled to the live EC2 Auto Scaling simulation.
 
 - Connection contracts cover a curated subset, not all AWS services or possible integrations.
   Full listener/port capabilities, structural contracts and operation catalogs remain incomplete.

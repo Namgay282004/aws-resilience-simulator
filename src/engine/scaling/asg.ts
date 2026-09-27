@@ -6,7 +6,10 @@ import { formatIp, parseCidr } from '../layout/cidrAllocator.ts';
  * Never infers group membership from nearby nodes, replica counts, or Multi-AZ flags.
  */
 export interface AsgConfig {
-  metricSource?: 'manual' | 'alb'; policyType?: 'simple' | 'target'; targetValue?: number;
+  metricSource?: 'manual' | 'alb'; policyType?: 'simple' | 'target' | 'step' | 'scheduled'; targetValue?: number;
+  scaleInEnabled?: boolean;
+  stepBands?: { above: number; adjustment: number }[];
+  scheduledActions?: { at: number; desired: number }[];
   templateId: string; memberIds: string[]; alarmId: string; loadBalancerId?: string;
   min: number; max: number; adjustment: number; period: number; evaluationPeriods: number;
   launchSeconds: number; warmupSeconds: number; cooldownSeconds: number;
@@ -49,11 +52,16 @@ export function advanceAsg(nodes: Node<any>[], edges: Edge<any>[], groupId: stri
   const group = next.find(n => n.id === groupId && n.data.serviceId === 'ec2_auto_scaling');
   if (!group || group.data.health === 'failed') throw new Error('ASG is missing or unavailable.');
   const config: AsgConfig = { ...defaultAsgConfig, ...group.data.customConfig?.asg };
-  if (!['manual', 'alb'].includes(config.metricSource ?? 'manual') || !['simple', 'target'].includes(config.policyType ?? 'simple')) throw new Error('Unsupported scaling policy or metric source.');
+  if (!['manual', 'alb'].includes(config.metricSource ?? 'manual') || !['simple', 'target', 'step', 'scheduled'].includes(config.policyType ?? 'simple')) throw new Error('Unsupported scaling policy or metric source.');
   if (config.policyType === 'target' && (config.metricSource !== 'alb' || !Number.isFinite(config.targetValue) || config.targetValue! <= 0)) throw new Error('Target tracking requires ALB metrics and a positive target.');
   if (config.metricSource === 'alb' && config.period !== 60) throw new Error('ALB request metrics use 60-second simulated periods.');
   const integers = [config.min, config.max, config.adjustment, config.period, config.evaluationPeriods, config.launchSeconds, config.warmupSeconds, config.cooldownSeconds];
   if (!integers.every(Number.isSafeInteger) || config.min < 0 || config.max < config.min || config.max > 20 || config.adjustment < 1 || config.period < 1 || config.evaluationPeriods < 1 || config.evaluationPeriods > 10 || Math.min(config.launchSeconds, config.warmupSeconds, config.cooldownSeconds) < 0) throw new Error('Invalid ASG bounds or timing (maximum 20 instances; 1–10 evaluation periods).');
+  if (config.policyType === 'step') {
+    const bands = config.stepBands ?? [];
+    if (!bands.length || bands[0].above !== 0 || bands.some((b, i) => !Number.isFinite(b.above) || b.above < 0 || !Number.isSafeInteger(b.adjustment) || b.adjustment < 0 || (i > 0 && b.above <= bands[i - 1].above))) throw new Error('Step bands must start at zero with increasing breach offsets and nonnegative integer adjustments.');
+  }
+  if (config.policyType === 'scheduled' && (!config.scheduledActions?.length || config.scheduledActions.some((a, i, all) => !Number.isSafeInteger(a.at) || a.at < 1 || !Number.isSafeInteger(a.desired) || a.desired < Math.max(config.min, config.memberIds.length) || a.desired > config.max || all.some((b, j) => i !== j && a.at === b.at)))) throw new Error('Scheduled actions need unique positive seconds and desired capacity within bounds and at least the initial member count.');
   if (value !== undefined && !Number.isFinite(value)) throw new Error('Metric sample must be finite or missing.');
   const template = next.find(n => n.id === config.templateId && n.data.serviceId === 'ec2');
   const alarm = next.find(n => n.id === config.alarmId && n.data.serviceId === 'cloudwatch');
@@ -93,14 +101,37 @@ export function advanceAsg(nodes: Node<any>[], edges: Edge<any>[], groupId: stri
   trace.push(`${runtime.now}s: ${alarm.data.label} ${alarmState}; ${runtime.samples.length}/${config.evaluationPeriods} samples, threshold ${config.policyType === 'target' ? '>' : '≥'} ${threshold}.`);
   alarm.data.customConfig ??= {};
   alarm.data.customConfig.asgAlarm = { groupId, state: alarmState, samples: [...runtime.samples], now: runtime.now };
-  if (alarmState === 'ALARM' && runtime.now >= runtime.cooldownUntil && members().every(n => n.data.customConfig.asgInstance.state === 'InService')) {
-    const wanted = config.policyType === 'target'
-      ? Math.ceil((value ?? 0) * (observedTargetCount ?? members().filter(n => n.data.health === 'healthy' && asgReady(n.data)).length) / config.targetValue!)
-      : runtime.desired + config.adjustment;
-    runtime.desired = Math.min(config.max, Math.max(runtime.desired, wanted));
-    runtime.cooldownUntil = runtime.now + config.launchSeconds + (config.policyType === 'target' ? config.warmupSeconds : config.cooldownSeconds);
-    trace.push(`${config.policyType === 'target' ? 'Illustrative target tracking' : 'Simple scale-out'} policy: desired ${runtime.desired} (bounds ${config.min}–${config.max}).`);
+  const ready = members().every(n => n.data.customConfig.asgInstance.state === 'InService');
+  const inService = members().filter(n => n.data.customConfig.asgInstance.state === 'InService').length;
+  let wanted = runtime.desired;
+  if (config.policyType === 'scheduled') {
+    const due = [...(config.scheduledActions ?? [])].filter(a => a.at > runtime.now - config.period && a.at <= runtime.now).sort((a, b) => a.at - b.at);
+    for (const action of due) { wanted = action.desired; trace.push(`Scheduled action at ${action.at}s: desired ${wanted}; independent of CloudWatch alarm.`); }
+  } else if (config.policyType === 'step' && alarmState === 'ALARM') {
+    const band = [...config.stepBands!].reverse().find(b => (sample! - threshold) >= b.above)!;
+    // Warming capacity counts toward desired, avoiding repeated additions for the same step.
+    wanted = Math.max(runtime.desired, inService + band.adjustment);
+    trace.push(`Step scaling: breach ${sample! - threshold}, adjustment +${band.adjustment}.`);
+  } else if (config.policyType === 'target') {
+    if (enough && !runtime.samples.includes(null)) {
+      const demand = Math.ceil((sample ?? 0) * (observedTargetCount ?? members().filter(n => n.data.health === 'healthy' && asgReady(n.data)).length) / config.targetValue!);
+      if (alarmState === 'ALARM') wanted = Math.max(runtime.desired, demand);
+      else if (config.scaleInEnabled && ready && runtime.samples.every(x => x! < threshold) && runtime.now >= runtime.cooldownUntil) wanted = demand;
+      trace.push(`Illustrative target tracking: estimated demand ${demand}.`);
+    }
+  } else if (alarmState === 'ALARM' && runtime.now >= runtime.cooldownUntil && ready) {
+    wanted += config.adjustment;
+    runtime.cooldownUntil = runtime.now + config.launchSeconds + config.cooldownSeconds;
   } else if (alarmState === 'ALARM') trace.push('Scaling deferred: launch/warmup or policy cooldown still active.');
+  // Initial diagram instances are retained as the reproducible demo baseline.
+  runtime.desired = Math.min(config.max, Math.max(config.min, config.memberIds.length, wanted));
+  if (runtime.desired !== members().length) trace.push(`Policy desired ${runtime.desired} (bounds ${config.min}–${config.max}; initial instances retained).`);
+  const remove = members().filter(n => n.data.customConfig.asgInstance.generated).reverse().slice(0, Math.max(0, members().length - runtime.desired));
+  for (const node of remove) {
+    next.splice(next.findIndex(n => n.id === node.id), 1);
+    for (let i = links.length - 1; i >= 0; i--) if (links[i].source === node.id || links[i].target === node.id) links.splice(i, 1);
+    trace.push(`${node.data.label}: terminated and deregistered from load balancer.`);
+  }
   const needed = runtime.desired - members().length;
   if (needed > 0) {
     const subnetId = template.data.networkIdentity?.subnetId ?? template.parentId;
@@ -115,15 +146,15 @@ export function advanceAsg(nodes: Node<any>[], edges: Edge<any>[], groupId: stri
       if (!ip) throw new Error('No available simulated IPv4 address in the selected subnet.');
       let id: string; do { id = `${groupId}-instance-${++runtime.sequence}`; } while (next.some(n => n.id === id));
       let index = 0;
-      while (next.some(n => n.parentId === subnet.id && n.type !== 'boundaryNode' && Math.abs(n.position.x - (30 + (index % 4) * 150)) < 140 && Math.abs(n.position.y - (190 + Math.floor(index / 4) * 130)) < 120)) index++;
+      while (next.some(n => n.parentId === subnet.id && n.type !== 'boundaryNode' && Math.abs(n.position.x - (30 + (index % 4) * 180)) < 140 && Math.abs(n.position.y - (190 + Math.floor(index / 4) * 130)) < 120)) index++;
 
       const instance: AsgInstance = { groupId, generated: true, state: 'Launching', launchedAt: runtime.now, runningAt: runtime.now + config.launchSeconds, readyAt: runtime.now + config.launchSeconds + config.warmupSeconds };
       const customConfig = structuredClone(template.data.customConfig ?? {});
       delete customConfig.serviceRuntime; delete customConfig.asg; delete customConfig.asgRuntime;
       customConfig.asgInstance = instance;
-      next.push({ id, type: 'serviceNode', parentId: subnet.id, extent: 'parent', position: { x: 30 + (index % 4) * 150, y: 190 + Math.floor(index / 4) * 130 }, data: { ...structuredClone(template.data), label: `${group.data.label} · EC2 ${runtime.sequence}`, health: 'healthy', replicas: 1, multiAz: false, isSimulating: false, customConfig, networkIdentity: { ...template.data.networkIdentity, subnetId: subnet.id, privateIp: ip } } });
+      next.push({ id, type: 'serviceNode', parentId: subnet.id, extent: 'parent', position: { x: 30 + (index % 4) * 180, y: 190 + Math.floor(index / 4) * 130 }, data: { ...structuredClone(template.data), label: `${group.data.label} · EC2 ${config.memberIds.length + runtime.sequence}`, health: 'healthy', replicas: 1, multiAz: false, isSimulating: false, customConfig, networkIdentity: { ...template.data.networkIdentity, subnetId: subnet.id, privateIp: ip } } });
       const height = Math.max(Number(subnet.data.height ?? 320), 340 + Math.floor(index / 4) * 130);
-      const width = Math.max(Number(subnet.data.width ?? 700), 660);
+      const width = Math.max(Number(subnet.data.width ?? 800), 800);
       subnet.data.height = height; subnet.data.width = width; subnet.style = { ...subnet.style, height, width };
       // Grow enclosing VPC when required so generated hosts stay visually contained.
       const parent = next.find(n => n.id === subnet.parentId);

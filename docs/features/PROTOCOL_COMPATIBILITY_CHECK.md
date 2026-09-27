@@ -18,8 +18,11 @@ Deliberate exemptions, so it doesn't fight the rest of the app:
 - **Non-request relationship kinds** (`manages`, `route-association`, `target-registration`) are
   skipped - protocol only means something on `request`/`dependency` edges.
 - **`isCriticalDependency: false` edges** are skipped - these already mean "configuration,
-  telemetry, or artifact flow, not live traffic" (see `courseLabsAdvanced.ts`'s CI/CD pipeline
-  edges: ECR image pulls, S3-hosted CloudFormation templates, pipeline-triggered stack updates).
+  telemetry, or artifact flow, not live traffic" (see the "AWS Data Transfer Hub" reference
+  architecture's CI/CD pipeline edges in `referenceArchitectures.ts`: ECR image pulls, S3-hosted
+  CloudFormation templates, pipeline-triggered stack updates - this doc previously misattributed
+  these to `courseLabsAdvanced.ts`, which has since been retired anyway; see `docs/COURSE_LABS.md`
+  for how lab references are stored now).
 - **Free-text protocol labels outside the `ProtocolType` union** (e.g. `"Replication"` for RDS
   Multi-AZ sync, `"S3 API"` for a VPC Gateway Endpoint hop) are a deliberate escape hatch some
   reference diagrams use for a mechanism the 9 standard categories don't capture, and are exempt.

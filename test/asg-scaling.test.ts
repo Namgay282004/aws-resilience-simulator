@@ -106,9 +106,9 @@ test('Canvas ALB traffic drives CloudWatch and grows only the connected ASG', as
   const noAction = observeAlbRequests(disconnected.nodes, disconnected.edges, runLiveSimulation(disconnected.nodes as any, disconnected.edges as any, scenario));
   assert.equal(generated(noAction).length, 0); assert.match(noAction.notes.join(' '), /monitoring connection/);
 });
-test('Illustrative target tracking calculates demand, clamps to max, and never scales in', async () => {
+test('Illustrative target tracking calculates demand, clamps to max, and respects disabled scale-in', async () => {
   const g = initial(); const group = g.nodes.find(n => n.id === 'asg-group')!;
-  group.data.customConfig.asg = { ...group.data.customConfig.asg, metricSource: 'alb', policyType: 'target', targetValue: 50 };
+  group.data.customConfig.asg = { ...group.data.customConfig.asg, metricSource: 'alb', policyType: 'target', targetValue: 50, scaleInEnabled: false };
   let graph = advanceAsg(g.nodes, g.edges, group.id, 120, 2);
   graph = advanceAsg(graph.nodes, graph.edges, group.id, 120, 2);
   assert.equal(generated(graph).length, 2);
@@ -129,4 +129,68 @@ test('Canvas clock advances pending launches without targets; unrelated requests
   send();
   assert.equal(generated(g)[0].data.customConfig.asgInstance.state, 'InService');
   assert.equal(g.nodes.find(n => n.id === 'asg-alarm')!.data.customConfig.asgObservation.value, null);
+});
+
+// AWS: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html
+// STEP-CANVAS-001: breach bands select ChangeInCapacity; warming capacity avoids duplicate launches.
+test('Step scaling uses breach bands and counts pending capacity', () => {
+  const g = initial();
+  Object.assign(g.nodes.find(n => n.id === 'asg-group')!.data.customConfig.asg, { policyType: 'step', evaluationPeriods: 1, launchSeconds: 180, stepBands: [{ above: 0, adjustment: 1 }, { above: 20, adjustment: 2 }] });
+  const small = tick(g, 90);
+  assert.equal(generated(small).length, 1);
+  assert.equal(generated(tick(small, 90)).length, 1);
+  const large = tick(small, 100);
+  assert.equal(generated(large).length, 2);
+  assert.equal(generated(tick(large, 200)).length, 2);
+  const invalid = structuredClone(g);
+  invalid.nodes.find(n => n.id === 'asg-group')!.data.customConfig.asg.stepBands[0].above = 5;
+  assert.throws(() => tick(invalid, 90), /Step bands/);
+});
+
+// AWS: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scheduled-scaling.html
+// SCHEDULE-CANVAS-001: time-driven desired capacity, independent of missing/failed alarm metrics.
+test('Scheduled actions launch and remove canvas instances once at the specified simulated times', () => {
+  const g = initial();
+  Object.assign(g.nodes.find(n => n.id === 'asg-group')!.data.customConfig.asg, { policyType: 'scheduled', scheduledActions: [{ at: 120, desired: 4 }, { at: 300, desired: 2 }] });
+  g.nodes.find(n => n.id === 'asg-alarm')!.data.health = 'failed';
+  let graph = tick(g);
+  assert.equal(generated(graph).length, 0);
+  graph = tick(graph);
+  assert.equal(generated(graph).length, 2);
+  const ids = generated(graph).map(n => n.id);
+  graph = tick(tick(tick(graph)));
+  assert.equal(generated(graph).length, 0);
+  assert.ok(graph.edges.every(e => !ids.includes(e.source) && !ids.includes(e.target)));
+  assert.equal(generated(tick(graph)).length, 0);
+  assert.equal(generated(tick(tick(resetAsg(graph.nodes, graph.edges)))) .length, 2);
+});
+
+// AWS: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html
+// TARGET-CANVAS-001: educational proportional target controller; sustained low load removes generated instances.
+test('Enabled target scale-in waits for sustained low samples and removes only generated members', () => {
+  const g = initial();
+  Object.assign(g.nodes.find(n => n.id === 'asg-group')!.data.customConfig.asg, { policyType: 'target', metricSource: 'alb', targetValue: 50, scaleInEnabled: true });
+  let graph = advanceAsg(g.nodes, g.edges, 'asg-group', 120, 2);
+  graph = advanceAsg(graph.nodes, graph.edges, 'asg-group', 120, 2);
+  assert.equal(generated(graph).length, 2);
+  graph = advanceAsg(graph.nodes, graph.edges, 'asg-group', 5, 4);
+  assert.equal(generated(graph).length, 2);
+  graph = advanceAsg(graph.nodes, graph.edges, 'asg-group', 5, 4);
+  assert.equal(generated(graph).length, 0);
+  assert.ok(graph.nodes.some(n => n.id === 'asg-web-1'));
+  assert.ok(graph.nodes.some(n => n.id === 'asg-web-2'));
+});
+
+test('Canvas scale-out keeps original positions and appends numbered EC2 instances in row order', () => {
+  const g = initial();
+  const originalPositions = new Map(g.nodes.map(n => [n.id, n.position]));
+  const scaled = tick(tick(g, 90), 90);
+  const first = generated(scaled)[0];
+  assert.match(first.data.label, /EC2 3$/);
+  assert.deepEqual(first.position, { x: 390, y: 190 });
+  let next = scaled;
+  for (let i = 0; i < 3; i++) next = tick(next, 90);
+  assert.match(generated(next)[1].data.label, /EC2 4$/);
+  assert.deepEqual(generated(next)[1].position, { x: 570, y: 190 });
+  for (const node of next.nodes) if (originalPositions.has(node.id)) assert.deepEqual(node.position, originalPositions.get(node.id));
 });
